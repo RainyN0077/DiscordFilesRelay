@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Discord 图像转发工具</title>
+    <!-- 引入 marked.js 用于 Markdown 渲染 -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- 引入 Lottie 动画库用于加载状态 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.9.6/lottie.min.js"></script>
+    <!-- 引入自定义样式 -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="theme-light">
+    <div class="container">
+        <!-- 顶部导航区 -->
+        <div class="navbar">
+            <div class="title-container">
+                <h1>Discord 图像转发</h1>
+                <p class="signature">作者：霞Twilight 创作协议：CC BY-NC-SA 4.0</p>
+            </div>
+            <button class="theme-toggle" onclick="toggleTheme()">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" id="sun-icon">
+                    <path d="M5.64,17l-.71.71a1,1,0,0,0,0,1.41,1,1,0,0,0,1.41,0l.71-.71A1,1,0,0,0,5.64,17ZM5,12a1,1,0,0,0-2,0v2a1,1,0,0,0,2,0Zm16-3a1,1,0,0,0,2,0V7a1,1,0,0,0-2,0ZM5.64,7l-.71-.71a1,1,0,0,0-1.41,0,1,1,0,0,0,0,1.41l.71.71A1,1,0,0,0,5.64,7ZM18,16.36l.71.71a1,1,0,0,0,1.41,0,1,1,0,0,0,0-1.41l-.71-.71A1,1,0,0,0,18,16.36Z" />
+                    <path d="M12,15.5a3.5,3.5,0,1,0,0-7,3.5,3.5,0,0,0,0,7Zm0-5a1.5,1.5,0,0,1,0,3,1.5,1.5,0,0,1,0-3Z" />
+                    <path d="M12,2a1,1,0,0,0-1,1V5a1,1,0,0,0,2,0V3A1,1,0,0,0,12,2Zm0,16a1,1,0,0,0-1,1v2a1,1,0,0,0,2,0V19A1,1,0,0,0,12,18Z" />
+                </svg>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" id="moon-icon" style="display:none;">
+                    <path d="M21.64,13a1,1,0,0,0-1.05-.14,8.05,8.05,0,0,1-3.37.73A8.15,8.15,0,0,1,9.08,5.49a8.59,8.59,0,0,1,.25-2A1,1,0,0,0,8,2.36,10.14,10.14,0,1,0,22,14.05,1,1,0,0,0,21.64,13Zm-9.5,6.69A8.14,8.14,0,0,1,7.08,5.22v.27A10.15,10.15,0,0,0,17.22,15.63a9.79,9.79,0,0,0,2.1-.22A8.11,8.11,0,0,1,12.14,19.73Z" />
+                </svg>
+                <span>切换主题</span>
+            </button>
+        </div>
+
+        <!-- 核心功能区 -->
+        <div class="card">
+            <h2 class="card-title">API 配置</h2>
+            <div class="input-group">
+                <label for="apiToken">用户 API Token（必填）</label>
+                <div class="input-with-icon">
+                    <input type="text" id="apiToken" placeholder="请输入你的 Discord API Token" class="blurred-text">
+                    <button class="paste-btn" onclick="pasteToken()">粘贴</button>
+                    <svg class="icon eye-closed" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" onclick="toggleTokenVisibility()">
+                        <path d="M12,9a3.53,3.53,0,0,0-3.5,3.5A3.53,3.53,0,0,0,12,16a3.5,3.5,0,0,0,0-7Zm0,5a1.5,1.5,0,0,1,0-3,1.5,1.5,0,0,1,0,3Z"/>
+                        <path d="M12,4.5C7,4.5,2.73,7.61,1,12c1.73,4.39,6,7.5,11,7.5s9.27-3.11,11-7.5C21.27,7.61,17,4.5,12,4.5Zm0,13a9.77,9.77,0,0,1-5.03-1.4,10.23,10.23,0,0,1-3.24-3.6,10.23,10.23,0,0,1,3.24-3.6A9.77,9.77,0,0,1,12,6.5a9.77,9.77,0,0,1,5.03,1.4,10.23,10.23,0,0,1,3.24,3.6,10.23,10.23,0,0,1-3.24,3.6A9.77,9.77,0,0,1,12,17.5Z"/>
+                    </svg>
+                    <svg class="icon eye-open" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" onclick="toggleTokenVisibility()" style="display:none;">
+                        <path d="M10.94,6.08A8.5,8.5,0,0,1,12,6c5,0,9.27,3.11,11,7.5a16.8,16.8,0,0,1-1.17,3.52,17.38,17.38,0,0,1-3.36,4.86,1,1,0,0,1-1.66-1.12,15.32,15.32,0,0,0,2.95-4.3,14.62,14.62,0,0,0,1.02-3A10.16,10.16,0,0,0,13.5,9.52a5.48,5.48,0,0,1-1.5-.22,1,1,0,0,1,.28-2A8.47,8.47,0,0,1,13.5,8a12.2,12.2,0,0,1,6.1,1.64A9.76,9.76,0,0,1,12,4.5C7,4.5,2.73,7.61,1,12c1.73,4.39,6,7.5,11,7.5a9.77,9.77,0,0,0,5.03-1.4,10.44,10.44,0,0,0,1.97-1.37,1,1,0,0,1,1.37,1.45,12.5,12.5,0,0,1-2.36,1.64A9.76,9.76,0,0,1,12,21.5c-5,0-9.27-3.11-11-7.5,1.73-4.39,6-7.5,11-7.5a9.7,9.7,0,0,1,1.42.11,8.48,8.48,0,0,1,1.24.47,1,1,0,0,1-1.06,1.7,6.49,6.49,0,0,0-.94-.36,7.75,7.75,0,0,0-1.14-.1,3.5,3.5,0,0,0,0,7,3.53,3.53,0,0,0,3.5-3.5,3.46,3.46,0,0,0-.06-.65,1,1,0,0,1,1.98-.32,5.46,5.46,0,0,1,.08,1,5.48,5.48,0,0,1-5.5,5.5,5.48,5.48,0,0,1-5.5-5.5,5.48,5.48,0,0,1,5.5-5.5,5.46,5.46,0,0,1,1.52.22Z"/>
+                        <path d="M2.29,18.71a1,1,0,0,0,1.42,0l.18-.18a1,1,0,0,0,0-1.42,1,1,0,0,0-1.42,0l-.18.18A1,1,0,0,0,2.29,18.71Z"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2 class="card-title">随机延迟设置</h2>
+            <div class="delay-group">
+                <div class="input-group">
+                    <label for="minDelay">最小延迟 (秒)</label>
+                    <div class="slider-container">
+                        <input type="range" id="minDelayRange" min="0" max="10" value="1">
+                        <input type="number" id="minDelay" class="slider-input" min="0" step="1" value="1">
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label for="maxDelay">最大延迟 (秒)</label>
+                    <div class="slider-container">
+                        <input type="range" id="maxDelayRange" min="0" max="10" value="5">
+                        <input type="number" id="maxDelay" class="slider-input" min="0" step="1" value="5">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2 class="card-title">频道管理</h2>
+            <div class="collapsible-panel">
+                <div class="panel-header" onclick="togglePanel(this)">
+                    <span>目标频道列表</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                        <path d="M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z"/>
+                    </svg>
+                </div>
+                <div class="panel-content" id="channelGroup">
+                    <div class="channel-item" id="channel-1">
+                        <button class="channel-toggle-btn enabled-btn" onclick="toggleChannel(1)">已启用</button>
+                        <div class="input-group channel-info">
+                            <span id="channel-name-1">服务器：未识别 | 频道：未识别</span>
+                            <input type="text" placeholder="请输入目标频道地址，例如：https://discord.com/channels/xxx/yyy">
+                        </div>
+                        <button class="delete-btn" onclick="removeChannel(1)">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="channel-actions">
+                <button class="secondary-btn" onclick="addChannel()">新增频道</button>
+                <button class="secondary-btn" onclick="enableAllChannels()">全启用</button>
+                <button class="secondary-btn" onclick="disableAllChannels()">全禁用</button>
+            </div>
+        </div>
+
+        <!-- 内容交互区 -->
+        <div class="card">
+            <h2 class="card-title">图像上传</h2>
+            <div class="upload-area" id="uploadArea">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="width: calc(var(--grid-unit) * 3); height: calc(var(--grid-unit) * 3); fill: var(--text-muted);">
+                    <path d="M19.35 10.04c-.68-3.45-3.71-6.04-7.35-6.04-2.89 0-5.4 1.64-6.65 4.04A5.994 5.994 0 0 0 .5 14c0 3.31 2.69 6 6 6h13c2.76 0 5.07-1.87 5.77-4.41a5.9 5.9 0 0 0-6.92-5.55zM19.5 18h-13c-2.21 0-4-1.79-4-4s1.79-4 4-4h.05c1.1-2.38 3.6-4 6.45-4 4.41 0 8 3.59 8 8s-3.59 8-8 8c-2.85 0-5.35-1.62-6.45-4h-.05c-2.21 0-4-1.79-4-4s1.79-4 4-4h13c2.21 0 4 1.79 4 4s-1.79 4-4 4z"/>
+                    <path d="M8.54 12.34l2.12-2.12c.38-.38 1.02-.38 1.4 0l2.12 2.12c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.12 2.12c-.18.18-.46.29-.71.29-.25 0-.53-.11-.71-.29l-2.12-2.12c-.38-.38-.38-1.02 0-1.4zM10 14.17V17h4v-2.83l-2-2-2 2z"/>
+                    <path d="M13.25 9.25a1.25 1.25 0 1 1 2.5 0 1.25 1.25 0 0 1-2.5 0z"/>
+                </svg>
+                <p>点击选择文件或拖放图像文件（最多10张）<br>或按 Ctrl+V 粘贴剪贴板中的图像</p>
+                <input type="file" id="imageInput" accept="image/*" multiple style="display: none;">
+            </div>
+            <div class="thumbnails-grid" id="previewContainer"></div>
+        </div>
+
+        <div class="card">
+            <h2 class="card-title">消息内容</h2>
+            <div class="editor-tabs">
+                <button class="editor-tab active" onclick="switchEditorTab('edit')">编辑</button>
+                <button class="editor-tab" onclick="switchEditorTab('preview')">预览</button>
+            </div>
+            <textarea id="message" placeholder="请输入消息内容，支持 Markdown 格式，例如：**粗体**、*斜体*、# 标题 等"></textarea>
+            <div class="markdown-preview" id="markdownPreview"></div>
+        </div>
+
+        <!-- 底部操作区 -->
+        <div class="action-buttons">
+            <button class="primary-btn" onclick="sendImage()">发送图像+消息</button>
+            <button class="secondary-btn" onclick="sendText()">仅发送文本</button>
+        </div>
+
+        <div class="status-log-card card">
+            <h2 class="card-title">状态与进度</h2>
+            <div class="status-log" id="status">
+                <p>状态：等待操作...</p>
+            </div>
+            <div class="speed-display" id="speedDisplay" style="display: none;">
+                <span id="uploadSpeed">上传速度：0 B/s</span>
+            </div>
+            <div id="progressBars" style="display: none;"></div>
+        </div>
+    </div>
+
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner" id="loadingSpinner"></div>
+    </div>
+
+    <!-- 引入自定义脚本 -->
+    <script src="scripts.js"></script>
+</body>
+</html>
