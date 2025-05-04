@@ -125,10 +125,11 @@
             </div>
             <textarea id="message" placeholder="请输入消息内容，支持 Markdown 格式，例如：**粗体**、*斜体*、# 标题 等"></textarea>
             <div class="markdown-preview" id="markdownPreview"></div>
-            <div class="channel-actions" style="margin-top: calc(var(--grid-unit) * 1.5);">
-                <button class="secondary-btn" id="sequentialBtn" onclick="toggleSendMode('sequential')">逐条发送</button>
-                <button class="primary-btn" id="parallelBtn" onclick="toggleSendMode('parallel')">并行发送</button>
-            </div>
+        </div>
+
+        <!-- 新增：发送模式切换按钮 -->
+        <div class="send-mode-toggle">
+            <button id="sendModeToggle" class="secondary-btn" onclick="toggleSendMode()">切换为并行发送</button>
         </div>
 
         <!-- 底部操作区 -->
@@ -139,19 +140,35 @@
         </div>
 
         <div class="status-log-card card">
-            <h2 class="card-title">状态与进度</h2>
+            <h2 class="card-title">状态日志</h2> <!-- 标题修改 -->
             <div class="status-log" id="status">
                 <p>状态：等待操作...</p>
             </div>
-            <div class="speed-display" id="speedDisplay" style="display: none;">
+            <!-- 移除旧的进度条和网速显示 -->
+            <!-- <div class="speed-display" id="speedDisplay" style="display: none;">
                 <span id="uploadSpeed">上传速度：0 B/s</span>
             </div>
-            <div id="progressBars" style="display: none;"></div>
+            <div id="progressBars" style="display: none;"></div> -->
         </div>
     </div>
 
+    <!-- 加载动画遮罩 -->
     <div class="loading-overlay" id="loadingOverlay">
         <div class="loading-spinner" id="loadingSpinner"></div>
+    </div>
+
+    <!-- 新增：进度弹窗 -->
+    <div class="modal-overlay" id="progressPopup">
+        <div class="modal-content">
+            <h3 class="modal-title" id="progressPopupTitle">发送进度</h3>
+            <div class="modal-speed-display" id="popupSpeedDisplay">
+                <span id="popupUploadSpeed">上传速度：0 B/s</span>
+            </div>
+            <div id="popupProgressBars">
+                <!-- 进度条将由 JS 动态生成 -->
+            </div>
+            <button class="secondary-btn" onclick="hideProgressPopup()" style="margin-top: calc(var(--grid-unit) * 2);">关闭</button>
+        </div>
     </div>
 
     <!-- 引入自定义脚本 -->
