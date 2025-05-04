@@ -103,8 +103,8 @@ function togglePanel(header) {
     panelContent.classList.toggle('collapsed');
 }
 
-// 图像预览功能
-const imageInput = document.getElementById('imageInput');
+// 文件预览功能
+const fileInput = document.getElementById('fileInput');
 const previewContainer = document.getElementById('previewContainer');
 const uploadArea = document.getElementById('uploadArea');
 const messageInput = document.getElementById('message');
@@ -114,13 +114,14 @@ const minDelayInput = document.getElementById('minDelay');
 const maxDelayInput = document.getElementById('maxDelay');
 const minDelayRange = document.getElementById('minDelayRange');
 const maxDelayRange = document.getElementById('maxDelayRange');
-let imageFiles = []; // 存储多张图片
+let fileItems = []; // 存储多个文件
 let channelCount = 1; // 频道输入框计数器
 let channelStates = {}; // 存储每个频道的启用/禁用状态
 let uploadStartTime = 0; // 上传开始时间
 let totalUploadedBytes = 0; // 总上传字节数
 let lastUploadedBytes = 0; // 上一次更新的字节数，用于计算网速
 let speedUpdateInterval = null; // 网速更新定时器
+let sendMode = 'sequential'; // 默认发送模式为逐条发送
 
 // Markdown 预览功能
 messageInput.addEventListener('input', function() {
@@ -170,30 +171,40 @@ maxDelayInput.addEventListener('input', function() {
     saveData();
 });
 
-// 更新图像预览
-function updateImagePreview() {
+// 更新文件预览
+function updateFilePreview() {
     previewContainer.innerHTML = '';
-    if (imageFiles.length > 0) {
-        imageFiles.forEach((file, index) => {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const thumbnail = document.createElement('div');
-                thumbnail.className = 'thumbnail';
-                thumbnail.innerHTML = `
-                    <img src="${e.target.result}" alt="图像预览 ${index + 1}">
-                    <button class="remove-btn" onclick="removeImage(${index})">×</button>
-                `;
-                previewContainer.appendChild(thumbnail);
-            };
-            reader.readAsDataURL(file);
+    if (fileItems.length > 0) {
+        fileItems.forEach((file, index) => {
+            const thumbnail = document.createElement('div');
+            thumbnail.className = 'thumbnail';
+            thumbnail.innerHTML = `
+                <div class="file-preview">
+                    <span>${file.name}</span>
+                    <span>${formatFileSize(file.size)}</span>
+                </div>
+                <button class="remove-btn" onclick="removeFile(${index})">×</button>
+            `;
+            previewContainer.appendChild(thumbnail);
         });
     }
 }
 
-// 删除指定图像
-function removeImage(index) {
-    imageFiles.splice(index, 1);
-    updateImagePreview();
+// 格式化文件大小
+function formatFileSize(bytes) {
+    if (bytes >= 1024 * 1024) {
+        return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+    } else if (bytes >= 1024) {
+        return (bytes / 1024).toFixed(2) + ' KB';
+    } else {
+        return bytes + ' B';
+    }
+}
+
+// 删除指定文件
+function removeFile(index) {
+    fileItems.splice(index, 1);
+    updateFilePreview();
 }
 
 // 加载本地保存的数据
@@ -493,6 +504,7 @@ window.onload = function() {
     loadSavedData();
     initializeLottie();
     ensureInputFocus();
+    updateSendModeButtons();
 };
 
 // 确保输入框在移动端可获取焦点
@@ -538,16 +550,16 @@ function hideLoading() {
 apiTokenInput.addEventListener('input', saveData);
 messageInput.addEventListener('input', saveData);
 
-// 图像上传功能
-imageInput.addEventListener('change', function(e) {
+// 文件上传功能
+fileInput.addEventListener('change', function(e) {
     const files = Array.from(e.target.files);
     if (files.length > 0) {
-        const newFiles = files.filter(file => !imageFiles.some(existing => existing.name === file.name && existing.size === file.size));
-        imageFiles = [...imageFiles, ...newFiles].slice(0, 10);
-        if (imageFiles.length < files.length + imageFiles.length) {
-            alert('最多只能上传10张图片，超出部分将被忽略。');
+        const newFiles = files.filter(file => !fileItems.some(existing => existing.name === file.name && existing.size === file.size));
+        fileItems = [...fileItems, ...newFiles].slice(0, 10);
+        if (fileItems.length < files.length + fileItems.length) {
+            alert('最多只能上传10个文件，超出部分将被忽略。');
         }
-        updateImagePreview();
+        updateFilePreview();
     }
 });
 
@@ -560,40 +572,63 @@ uploadArea.addEventListener('dragover', function(e) {
 uploadArea.addEventListener('drop', function(e) {
     e.preventDefault();
     e.stopPropagation();
-    const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
+    const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
-        const newFiles = files.filter(file => !imageFiles.some(existing => existing.name === file.name && existing.size === file.size));
-        imageFiles = [...imageFiles, ...newFiles].slice(0, 10);
-        if (imageFiles.length < files.length + imageFiles.length) {
-            alert('最多只能上传10张图片，超出部分将被忽略。');
+        const newFiles = files.filter(file => !fileItems.some(existing => existing.name === file.name && existing.size === file.size));
+        fileItems = [...fileItems, ...newFiles].slice(0, 10);
+        if (fileItems.length < files.length + fileItems.length) {
+            alert('最多只能上传10个文件，超出部分将被忽略。');
         }
-        updateImagePreview();
+        updateFilePreview();
     }
 });
 
 uploadArea.addEventListener('click', function() {
-    imageInput.click();
+    fileInput.click();
 });
 
 // 监听剪贴板粘贴事件
 document.addEventListener('paste', function(e) {
     const items = e.clipboardData.items;
     for (let i = 0; i < items.length; i++) {
-        if (items[i].type.indexOf('image') !== -1 && imageFiles.length < 10) {
+        if (items[i].kind === 'file' && fileItems.length < 10) {
             const blob = items[i].getAsFile();
-            const uniqueName = `pasted-image-${Date.now()}-${Math.floor(Math.random() * 1000)}.png`;
+            const uniqueName = `pasted-file-${Date.now()}-${Math.floor(Math.random() * 1000)}${blob.name ? blob.name : '.bin'}`;
             const file = new File([blob], uniqueName, { type: blob.type });
-            if (!imageFiles.some(existing => existing.name === file.name)) {
-                imageFiles.push(file);
-                updateImagePreview();
+            if (!fileItems.some(existing => existing.name === file.name)) {
+                fileItems.push(file);
+                updateFilePreview();
             }
-            if (imageFiles.length >= 10) {
-                alert('最多只能上传10张图片，超出部分将被忽略。');
+            if (fileItems.length >= 10) {
+                alert('最多只能上传10个文件，超出部分将被忽略。');
                 break;
             }
         }
     }
 });
+
+// 切换发送模式
+function toggleSendMode(mode) {
+    sendMode = mode;
+    updateSendModeButtons();
+}
+
+// 更新发送模式按钮样式
+function updateSendModeButtons() {
+    const sequentialBtn = document.getElementById('sequentialBtn');
+    const parallelBtn = document.getElementById('parallelBtn');
+    if (sendMode === 'sequential') {
+        sequentialBtn.classList.remove('secondary-btn');
+        sequentialBtn.classList.add('primary-btn');
+        parallelBtn.classList.remove('primary-btn');
+        parallelBtn.classList.add('secondary-btn');
+    } else {
+        sequentialBtn.classList.remove('primary-btn');
+        sequentialBtn.classList.add('secondary-btn');
+        parallelBtn.classList.remove('secondary-btn');
+        parallelBtn.classList.add('primary-btn');
+    }
+}
 
 // 延迟函数，支持进度更新
 function delayWithProgress(ms, channelIndex) {
@@ -673,22 +708,38 @@ function stopUploadSpeedUpdate() {
 function initializeProgressBars(channels) {
     const progressBarsContainer = document.getElementById('progressBars');
     progressBarsContainer.innerHTML = '';
-    channels.forEach((channel, index) => {
-        const channelName = document.getElementById(`channel-name-${index + 1}`)?.textContent || `频道 ${index + 1}`;
+    if (sendMode === 'sequential' || channels.length === 1) {
+        channels.forEach((channel, index) => {
+            const channelName = document.getElementById(`channel-name-${index + 1}`)?.textContent || `频道 ${index + 1}`;
+            const progressContainer = document.createElement('div');
+            progressContainer.className = 'progress-container';
+            progressContainer.id = `progress-container-${index + 1}`;
+            progressContainer.innerHTML = `
+                <div class="progress-label">
+                    <span>${channelName}</span>
+                    <span id="progress-percent-${index + 1}">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress" id="progress-${index + 1}" style="width: 0%;"></div>
+                </div>
+            `;
+            progressBarsContainer.appendChild(progressContainer);
+        });
+    } else {
         const progressContainer = document.createElement('div');
         progressContainer.className = 'progress-container';
-        progressContainer.id = `progress-container-${index + 1}`;
+        progressContainer.id = `progress-container-total`;
         progressContainer.innerHTML = `
             <div class="progress-label">
-                <span>${channelName}</span>
-                <span id="progress-percent-${index + 1}">0%</span>
+                <span>总进度</span>
+                <span id="progress-percent-total">0%</span>
             </div>
             <div class="progress-bar">
-                <div class="progress" id="progress-${index + 1}" style="width: 0%;"></div>
+                <div class="progress" id="progress-total" style="width: 0%;"></div>
             </div>
         `;
         progressBarsContainer.appendChild(progressContainer);
-    });
+    }
     document.getElementById('speedDisplay').style.display = 'block';
     document.getElementById('progressBars').style.display = 'block';
     document.getElementById('uploadSpeed').textContent = '上传速度：0 B/s';
@@ -696,11 +747,20 @@ function initializeProgressBars(channels) {
 
 // 更新进度条
 function updateProgressBar(channelIndex, percentage) {
-    const progressElement = document.getElementById(`progress-${channelIndex}`);
-    const progressPercent = document.getElementById(`progress-percent-${channelIndex}`);
-    if (progressElement && progressPercent) {
-        progressElement.style.width = `${percentage}%`;
-        progressPercent.textContent = `${Math.round(percentage)}%`;
+    if (sendMode === 'sequential') {
+        const progressElement = document.getElementById(`progress-${channelIndex}`);
+        const progressPercent = document.getElementById(`progress-percent-${channelIndex}`);
+        if (progressElement && progressPercent) {
+            progressElement.style.width = `${percentage}%`;
+            progressPercent.textContent = `${Math.round(percentage)}%`;
+        }
+    } else {
+        const progressElement = document.getElementById(`progress-total`);
+        const progressPercent = document.getElementById(`progress-percent-total`);
+        if (progressElement && progressPercent) {
+            progressElement.style.width = `${percentage}%`;
+            progressPercent.textContent = `${Math.round(percentage)}%`;
+        }
     }
 }
 
@@ -711,8 +771,8 @@ function hideProgressBars() {
     document.getElementById('progressBars').innerHTML = '';
 }
 
-// 使用 XMLHttpRequest 发送图像和消息到 Discord 频道，支持上传进度监控
-async function sendImage() {
+// 使用 XMLHttpRequest 发送文件到 Discord 频道，支持上传进度监控
+async function sendFile() {
     const apiToken = apiTokenInput.value.trim();
     const channelInputs = document.querySelectorAll('#channelGroup input[type="text"]');
     const channels = Array.from(channelInputs)
@@ -721,7 +781,6 @@ async function sendImage() {
             enabled: channelStates[index + 1]
         }))
         .filter(channel => channel.url !== '' && channel.enabled);
-    const message = messageInput.value.trim();
 
     if (!apiToken) {
         updateStatus('状态：错误 - 请填写 API Token！', 'error');
@@ -731,8 +790,8 @@ async function sendImage() {
         updateStatus('状态：错误 - 请至少启用一个有效的频道地址！', 'error');
         return;
     }
-    if (imageFiles.length === 0 && !message) {
-        updateStatus('状态：错误 - 请至少上传一张图像或输入消息内容！', 'error');
+    if (fileItems.length === 0) {
+        updateStatus('状态：错误 - 请至少上传一个文件！', 'error');
         return;
     }
 
@@ -743,96 +802,139 @@ async function sendImage() {
     lastUploadedBytes = 0;
     startUploadSpeedUpdate();
 
-    for (let i = 0; i < channels.length; i++) {
-        const channel = channels[i];
-        try {
-            const channelId = channel.url.split('/').pop();
-            if (!channelId) {
-                updateStatus(`状态：错误 - 无效的频道地址：${channel.url}`, 'error');
-                updateProgressBar(i + 1, 100); // 标记为完成，即使失败
-                continue;
-            }
-
-            const delayTime = getRandomDelay();
-            updateStatus(`状态：等待随机延迟 ${Math.round(delayTime / 1000)} 秒后发送到频道 ${channel.url}`);
-            await delayWithProgress(delayTime, i + 1); // 使用带进度更新的延迟函数
-
-            if (imageFiles.length > 0) {
-                const formData = new FormData();
-                let totalSize = 0;
-                imageFiles.forEach((file, index) => {
-                    formData.append(`file${index}`, file);
-                    totalSize += file.size;
-                });
-                if (message) {
-                    formData.append('content', message);
-                }
-
-                // 使用 XMLHttpRequest 替代 fetch，以便监听上传进度
-                await new Promise((resolve, reject) => {
-                    const xhr = new XMLHttpRequest();
-                    xhr.open('POST', `https://discord.com/api/v9/channels/${channelId}/messages`, true);
-                    xhr.setRequestHeader('Authorization', apiToken);
-
-                    // 监听上传进度
-                    xhr.upload.onprogress = (event) => {
-                        if (event.lengthComputable) {
-                            totalUploadedBytes = event.loaded;
-                            // 进度条更新为50%（延迟） + (上传进度/总大小)*50%
-                            const uploadProgress = (event.loaded / event.total) * 50;
-                            updateProgressBar(i + 1, 50 + uploadProgress);
-                        }
-                    };
-
-                    xhr.onload = () => {
-                        if (xhr.status >= 200 && xhr.status < 300) {
-                            updateStatus(`状态：成功发送图像和消息到频道 ${channel.url}`, 'success');
-                            updateProgressBar(i + 1, 100);
-                            resolve(xhr.response);
-                        } else {
-                            try {
-                                const error = JSON.parse(xhr.responseText);
-                                updateStatus(`状态：发送失败到频道 ${channel.url}，错误：${error.message || '未知错误'}`, 'error');
-                            } catch {
-                                updateStatus(`状态：发送失败到频道 ${channel.url}，错误：状态码 ${xhr.status}`, 'error');
-                            }
-                            updateProgressBar(i + 1, 100);
-                            reject(new Error(`HTTP error: ${xhr.status}`));
-                        }
-                    };
-
-                    xhr.onerror = () => {
-                        updateStatus(`状态：发送失败到频道 ${channel.url}，错误：网络错误`, 'error');
-                        updateProgressBar(i + 1, 100);
-                        reject(new Error('Network error'));
-                    };
-
-                    xhr.send(formData);
-                });
-            } else {
-                // 纯文本消息仍使用 fetch，因为没有上传进度需要监控
-                const response = await fetch(`https://discord.com/api/v9/channels/${channelId}/messages`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': apiToken,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ content: message })
-                });
-
-                if (response.ok) {
-                    updateStatus(`状态：成功发送消息到频道 ${channel.url}`, 'success');
-                    updateProgressBar(i + 1, 100);
-                } else {
-                    const error = await response.json();
-                    updateStatus(`状态：发送失败到频道 ${channel.url}，错误：${error.message || '未知错误'}`, 'error');
+    if (sendMode === 'sequential') {
+        for (let i = 0; i < channels.length; i++) {
+            const channel = channels[i];
+            try {
+                const channelId = channel.url.split('/').pop();
+                if (!channelId) {
+                    updateStatus(`状态：错误 - 无效的频道地址：${channel.url}`, 'error');
                     updateProgressBar(i + 1, 100); // 标记为完成，即使失败
+                    continue;
                 }
+
+                const delayTime = getRandomDelay();
+                updateStatus(`状态：等待随机延迟 ${Math.round(delayTime / 1000)} 秒后发送到频道 ${channel.url}`);
+                await delayWithProgress(delayTime, i + 1); // 使用带进度更新的延迟函数
+
+                if (fileItems.length > 0) {
+                    const formData = new FormData();
+                    let totalSize = 0;
+                    fileItems.forEach((file, index) => {
+                        formData.append(`file${index}`, file);
+                        totalSize += file.size;
+                    });
+
+                    // 使用 XMLHttpRequest 替代 fetch，以便监听上传进度
+                    await new Promise((resolve, reject) => {
+                        const xhr = new XMLHttpRequest();
+                        xhr.open('POST', `https://discord.com/api/v9/channels/${channelId}/messages`, true);
+                        xhr.setRequestHeader('Authorization', apiToken);
+
+                        // 监听上传进度
+                        xhr.upload.onprogress = (event) => {
+                            if (event.lengthComputable) {
+                                totalUploadedBytes = event.loaded;
+                                // 进度条更新为50%（延迟） + (上传进度/总大小)*50%
+                                const uploadProgress = (event.loaded / event.total) * 50;
+                                updateProgressBar(i + 1, 50 + uploadProgress);
+                            }
+                        };
+
+                        xhr.onload = () => {
+                            if (xhr.status >= 200 && xhr.status < 300) {
+                                updateStatus(`状态：成功发送文件到频道 ${channel.url}`, 'success');
+                                updateProgressBar(i + 1, 100);
+                                resolve(xhr.response);
+                            } else {
+                                try {
+                                    const error = JSON.parse(xhr.responseText);
+                                    updateStatus(`状态：发送失败到频道 ${channel.url}，错误：${error.message || '未知错误'}`, 'error');
+                                } catch {
+                                    updateStatus(`状态：发送失败到频道 ${channel.url}，错误：状态码 ${xhr.status}`, 'error');
+                                }
+                                updateProgressBar(i + 1, 100);
+                                reject(new Error(`HTTP error: ${xhr.status}`));
+                            }
+                        };
+
+                        xhr.onerror = () => {
+                            updateStatus(`状态：发送失败到频道 ${channel.url}，错误：网络错误`, 'error');
+                            updateProgressBar(i + 1, 100);
+                            reject(new Error('Network error'));
+                        };
+
+                        xhr.send(formData);
+                    });
+                }
+            } catch (err) {
+                updateStatus(`状态：发送失败到频道 ${channel.url}，错误：${err.message}`, 'error');
+                updateProgressBar(i + 1, 100); // 标记为完成，即使失败
             }
-        } catch (err) {
-            updateStatus(`状态：发送失败到频道 ${channel.url}，错误：${err.message}`, 'error');
-            updateProgressBar(i + 1, 100); // 标记为完成，即使失败
         }
+    } else {
+        const promises = channels.map(async (channel, i) => {
+            try {
+                const channelId = channel.url.split('/').pop();
+                if (!channelId) {
+                    updateStatus(`状态：错误 - 无效的频道地址：${channel.url}`, 'error');
+                    return;
+                }
+
+                const delayTime = getRandomDelay();
+                updateStatus(`状态：等待随机延迟 ${Math.round(delayTime / 1000)} 秒后发送到频道 ${channel.url}`);
+                await delayWithProgress(delayTime, i + 1);
+
+                if (fileItems.length > 0) {
+                    const formData = new FormData();
+                    let totalSize = 0;
+                    fileItems.forEach((file, index) => {
+                        formData.append(`file${index}`, file);
+                        totalSize += file.size;
+                    });
+
+                    await new Promise((resolve, reject) => {
+                        const xhr = new XMLHttpRequest();
+                        xhr.open('POST', `https://discord.com/api/v9/channels/${channelId}/messages`, true);
+                        xhr.setRequestHeader('Authorization', apiToken);
+
+                        xhr.upload.onprogress = (event) => {
+                            if (event.lengthComputable) {
+                                totalUploadedBytes += event.loaded / channels.length;
+                                const uploadProgress = (totalUploadedBytes / (totalSize * channels.length)) * 100;
+                                updateProgressBar(1, uploadProgress);
+                            }
+                        };
+
+                        xhr.onload = () => {
+                            if (xhr.status >= 200 && xhr.status < 300) {
+                                updateStatus(`状态：成功发送文件到频道 ${channel.url}`, 'success');
+                                resolve(xhr.response);
+                            } else {
+                                try {
+                                    const error = JSON.parse(xhr.responseText);
+                                    updateStatus(`状态：发送失败到频道 ${channel.url}，错误：${error.message || '未知错误'}`, 'error');
+                                } catch {
+                                    updateStatus(`状态：发送失败到频道 ${channel.url}，错误：状态码 ${xhr.status}`, 'error');
+                                }
+                                reject(new Error(`HTTP error: ${xhr.status}`));
+                            }
+                        };
+
+                        xhr.onerror = () => {
+                            updateStatus(`状态：发送失败到频道 ${channel.url}，错误：网络错误`, 'error');
+                            reject(new Error('Network error'));
+                        };
+
+                        xhr.send(formData);
+                    });
+                }
+            } catch (err) {
+                updateStatus(`状态：发送失败到频道 ${channel.url}，错误：${err.message}`, 'error');
+            }
+        });
+        await Promise.all(promises);
+        updateProgressBar(1, 100);
     }
     stopUploadSpeedUpdate();
     hideLoading();
@@ -871,41 +973,254 @@ async function sendText() {
     lastUploadedBytes = 0;
     startUploadSpeedUpdate();
 
-    for (let i = 0; i < channels.length; i++) {
-        const channel = channels[i];
-        try {
-            const channelId = channel.url.split('/').pop();
-            if (!channelId) {
-                updateStatus(`状态：错误 - 无效的频道地址：${channel.url}`, 'error');
+    if (sendMode === 'sequential') {
+        for (let i = 0; i < channels.length; i++) {
+            const channel = channels[i];
+            try {
+                const channelId = channel.url.split('/').pop();
+                if (!channelId) {
+                    updateStatus(`状态：错误 - 无效的频道地址：${channel.url}`, 'error');
+                    updateProgressBar(i + 1, 100); // 标记为完成，即使失败
+                    continue;
+                }
+
+                const delayTime = getRandomDelay();
+                updateStatus(`状态：等待随机延迟 ${Math.round(delayTime / 1000)} 秒后发送到频道 ${channel.url}`);
+                await delayWithProgress(delayTime, i + 1); // 使用带进度更新的延迟函数
+
+                const response = await fetch(`https://discord.com/api/v9/channels/${channelId}/messages`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': apiToken,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ content: message })
+                });
+
+                if (response.ok) {
+                    updateStatus(`状态：成功发送纯文本消息到频道 ${channel.url}`, 'success');
+                    updateProgressBar(i + 1, 100);
+                } else {
+                    const error = await response.json();
+                    updateStatus(`状态：发送失败到频道 ${channel.url}，错误：${error.message || '未知错误'}`, 'error');
+                    updateProgressBar(i + 1, 100); // 标记为完成，即使失败
+                }
+            } catch (err) {
+                updateStatus(`状态：发送失败到频道 ${channel.url}，错误：${err.message}`, 'error');
                 updateProgressBar(i + 1, 100); // 标记为完成，即使失败
-                continue;
             }
-
-            const delayTime = getRandomDelay();
-            updateStatus(`状态：等待随机延迟 ${Math.round(delayTime / 1000)} 秒后发送到频道 ${channel.url}`);
-            await delayWithProgress(delayTime, i + 1); // 使用带进度更新的延迟函数
-
-            const response = await fetch(`https://discord.com/api/v9/channels/${channelId}/messages`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': apiToken,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ content: message })
-            });
-
-            if (response.ok) {
-                updateStatus(`状态：成功发送纯文本消息到频道 ${channel.url}`, 'success');
-                updateProgressBar(i + 1, 100);
-            } else {
-                const error = await response.json();
-                updateStatus(`状态：发送失败到频道 ${channel.url}，错误：${error.message || '未知错误'}`, 'error');
-                updateProgressBar(i + 1, 100); // 标记为完成，即使失败
-            }
-        } catch (err) {
-            updateStatus(`状态：发送失败到频道 ${channel.url}，错误：${err.message}`, 'error');
-            updateProgressBar(i + 1, 100); // 标记为完成，即使失败
         }
+    } else {
+        const promises = channels.map(async (channel, i) => {
+            try {
+                const channelId = channel.url.split('/').pop();
+                if (!channelId) {
+                    updateStatus(`状态：错误 - 无效的频道地址：${channel.url}`, 'error');
+                    return;
+                }
+
+                const delayTime = getRandomDelay();
+                updateStatus(`状态：等待随机延迟 ${Math.round(delayTime / 1000)} 秒后发送到频道 ${channel.url}`);
+                await delayWithProgress(delayTime, i + 1);
+
+                const response = await fetch(`https://discord.com/api/v9/channels/${channelId}/messages`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': apiToken,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ content: message })
+                });
+
+                if (response.ok) {
+                    updateStatus(`状态：成功发送纯文本消息到频道 ${channel.url}`, 'success');
+                } else {
+                    const error = await response.json();
+                    updateStatus(`状态：发送失败到频道 ${channel.url}，错误：${error.message || '未知错误'}`, 'error');
+                }
+            } catch (err) {
+                updateStatus(`状态：发送失败到频道 ${channel.url}，错误：${err.message}`, 'error');
+            }
+        });
+        await Promise.all(promises);
+        updateProgressBar(1, 100);
+    }
+    stopUploadSpeedUpdate();
+    hideLoading();
+    hideProgressBars();
+}
+
+// 发送文件和文本到 Discord 频道
+async function sendFileAndText() {
+    const apiToken = apiTokenInput.value.trim();
+    const channelInputs = document.querySelectorAll('#channelGroup input[type="text"]');
+    const channels = Array.from(channelInputs)
+        .map((input, index) => ({
+            url: input.value.trim(),
+            enabled: channelStates[index + 1]
+        }))
+        .filter(channel => channel.url !== '' && channel.enabled);
+    const message = messageInput.value.trim();
+
+    if (!apiToken) {
+        updateStatus('状态：错误 - 请填写 API Token！', 'error');
+        return;
+    }
+    if (channels.length === 0) {
+        updateStatus('状态：错误 - 请至少启用一个有效的频道地址！', 'error');
+        return;
+    }
+    if (fileItems.length === 0 || !message) {
+        updateStatus('状态：错误 - 请至少上传一个文件并输入消息内容！', 'error');
+        return;
+    }
+
+    updateStatus('状态：正在发送...');
+    showLoading();
+    initializeProgressBars(channels);
+    totalUploadedBytes = 0;
+    lastUploadedBytes = 0;
+    startUploadSpeedUpdate();
+
+    if (sendMode === 'sequential') {
+        for (let i = 0; i < channels.length; i++) {
+            const channel = channels[i];
+            try {
+                const channelId = channel.url.split('/').pop();
+                if (!channelId) {
+                    updateStatus(`状态：错误 - 无效的频道地址：${channel.url}`, 'error');
+                    updateProgressBar(i + 1, 100); // 标记为完成，即使失败
+                    continue;
+                }
+
+                const delayTime = getRandomDelay();
+                updateStatus(`状态：等待随机延迟 ${Math.round(delayTime / 1000)} 秒后发送到频道 ${channel.url}`);
+                await delayWithProgress(delayTime, i + 1); // 使用带进度更新的延迟函数
+
+                if (fileItems.length > 0) {
+                    const formData = new FormData();
+                    let totalSize = 0;
+                    fileItems.forEach((file, index) => {
+                        formData.append(`file${index}`, file);
+                        totalSize += file.size;
+                    });
+                    if (message) {
+                        formData.append('content', message);
+                    }
+
+                    // 使用 XMLHttpRequest 替代 fetch，以便监听上传进度
+                    await new Promise((resolve, reject) => {
+                        const xhr = new XMLHttpRequest();
+                        xhr.open('POST', `https://discord.com/api/v9/channels/${channelId}/messages`, true);
+                        xhr.setRequestHeader('Authorization', apiToken);
+
+                        // 监听上传进度
+                        xhr.upload.onprogress = (event) => {
+                            if (event.lengthComputable) {
+                                totalUploadedBytes = event.loaded;
+                                // 进度条更新为50%（延迟） + (上传进度/总大小)*50%
+                                const uploadProgress = (event.loaded / event.total) * 50;
+                                updateProgressBar(i + 1, 50 + uploadProgress);
+                            }
+                        };
+
+                        xhr.onload = () => {
+                            if (xhr.status >= 200 && xhr.status < 300) {
+                                updateStatus(`状态：成功发送文件和消息到频道 ${channel.url}`, 'success');
+                                updateProgressBar(i + 1, 100);
+                                resolve(xhr.response);
+                            } else {
+                                try {
+                                    const error = JSON.parse(xhr.responseText);
+                                    updateStatus(`状态：发送失败到频道 ${channel.url}，错误：${error.message || '未知错误'}`, 'error');
+                                } catch {
+                                    updateStatus(`状态：发送失败到频道 ${channel.url}，错误：状态码 ${xhr.status}`, 'error');
+                                }
+                                updateProgressBar(i + 1, 100);
+                                reject(new Error(`HTTP error: ${xhr.status}`));
+                            }
+                        };
+
+                        xhr.onerror = () => {
+                            updateStatus(`状态：发送失败到频道 ${channel.url}，错误：网络错误`, 'error');
+                            updateProgressBar(i + 1, 100);
+                            reject(new Error('Network error'));
+                        };
+
+                        xhr.send(formData);
+                    });
+                }
+            } catch (err) {
+                updateStatus(`状态：发送失败到频道 ${channel.url}，错误：${err.message}`, 'error');
+                updateProgressBar(i + 1, 100); // 标记为完成，即使失败
+            }
+        }
+    } else {
+        const promises = channels.map(async (channel, i) => {
+            try {
+                const channelId = channel.url.split('/').pop();
+                if (!channelId) {
+                    updateStatus(`状态：错误 - 无效的频道地址：${channel.url}`, 'error');
+                    return;
+                }
+
+                const delayTime = getRandomDelay();
+                updateStatus(`状态：等待随机延迟 ${Math.round(delayTime / 1000)} 秒后发送到频道 ${channel.url}`);
+                await delayWithProgress(delayTime, i + 1);
+
+                if (fileItems.length > 0) {
+                    const formData = new FormData();
+                    let totalSize = 0;
+                    fileItems.forEach((file, index) => {
+                        formData.append(`file${index}`, file);
+                        totalSize += file.size;
+                    });
+                    if (message) {
+                        formData.append('content', message);
+                    }
+
+                    await new Promise((resolve, reject) => {
+                        const xhr = new XMLHttpRequest();
+                        xhr.open('POST', `https://discord.com/api/v9/channels/${channelId}/messages`, true);
+                        xhr.setRequestHeader('Authorization', apiToken);
+
+                        xhr.upload.onprogress = (event) => {
+                            if (event.lengthComputable) {
+                                totalUploadedBytes += event.loaded / channels.length;
+                                const uploadProgress = (totalUploadedBytes / (totalSize * channels.length)) * 100;
+                                updateProgressBar(1, uploadProgress);
+                            }
+                        };
+
+                        xhr.onload = () => {
+                            if (xhr.status >= 200 && xhr.status < 300) {
+                                updateStatus(`状态：成功发送文件和消息到频道 ${channel.url}`, 'success');
+                                resolve(xhr.response);
+                            } else {
+                                try {
+                                    const error = JSON.parse(xhr.responseText);
+                                    updateStatus(`状态：发送失败到频道 ${channel.url}，错误：${error.message || '未知错误'}`, 'error');
+                                } catch {
+                                    updateStatus(`状态：发送失败到频道 ${channel.url}，错误：状态码 ${xhr.status}`, 'error');
+                                }
+                                reject(new Error(`HTTP error: ${xhr.status}`));
+                            }
+                        };
+
+                        xhr.onerror = () => {
+                            updateStatus(`状态：发送失败到频道 ${channel.url}，错误：网络错误`, 'error');
+                            reject(new Error('Network error'));
+                        };
+
+                        xhr.send(formData);
+                    });
+                }
+            } catch (err) {
+                updateStatus(`状态：发送失败到频道 ${channel.url}，错误：${err.message}`, 'error');
+            }
+        });
+        await Promise.all(promises);
+        updateProgressBar(1, 100);
     }
     stopUploadSpeedUpdate();
     hideLoading();

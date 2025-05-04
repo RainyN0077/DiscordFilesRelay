@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Discord 图像转发工具</title>
+    <title>Discord 文件转发工具</title>
     <!-- 引入 marked.js 用于 Markdown 渲染 -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <!-- 引入 Lottie 动画库用于加载状态 -->
@@ -16,7 +16,7 @@
         <!-- 顶部导航区 -->
         <div class="navbar">
             <div class="title-container">
-                <h1>Discord 图像转发</h1>
+                <h1>Discord 文件转发</h1>
                 <p class="signature">作者：霞Twilight 创作协议：CC BY-NC-SA 4.0</p>
             </div>
             <button class="theme-toggle" onclick="toggleTheme()">
@@ -105,15 +105,14 @@
 
         <!-- 内容交互区 -->
         <div class="card">
-            <h2 class="card-title">图像上传</h2>
+            <h2 class="card-title">文件上传</h2>
             <div class="upload-area" id="uploadArea">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="width: calc(var(--grid-unit) * 3); height: calc(var(--grid-unit) * 3); fill: var(--text-muted);">
-                    <path d="M19.35 10.04c-.68-3.45-3.71-6.04-7.35-6.04-2.89 0-5.4 1.64-6.65 4.04A5.994 5.994 0 0 0 .5 14c0 3.31 2.69 6 6 6h13c2.76 0 5.07-1.87 5.77-4.41a5.9 5.9 0 0 0-6.92-5.55zM19.5 18h-13c-2.21 0-4-1.79-4-4s1.79-4 4-4h.05c1.1-2.38 3.6-4 6.45-4 4.41 0 8 3.59 8 8s-3.59 8-8 8c-2.85 0-5.35-1.62-6.45-4h-.05c-2.21 0-4-1.79-4-4s1.79-4 4-4h13c2.21 0 4 1.79 4 4s-1.79 4-4 4z"/>
-                    <path d="M8.54 12.34l2.12-2.12c.38-.38 1.02-.38 1.4 0l2.12 2.12c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.12 2.12c-.18.18-.46.29-.71.29-.25 0-.53-.11-.71-.29l-2.12-2.12c-.38-.38-.38-1.02 0-1.4zM10 14.17V17h4v-2.83l-2-2-2 2z"/>
-                    <path d="M13.25 9.25a1.25 1.25 0 1 1 2.5 0 1.25 1.25 0 0 1-2.5 0z"/>
+                    <path d="M14.828 12l1.414-1.414-2.828-2.829a1 1 0 0 1 1.414-1.414l4.242 4.243a1 1 0 0 1 0 1.414l-4.242 4.243a1 1 0 1 1-1.414-1.414l2.828-2.829H5a1 1 0 0 1 0-2h11.828z"/>
+                    <path d="M7 18h10v2H7v-2zM7 14h10v2H7v-2zM5 10h4v2H5v-2zM3 6h6v2H3V6z"/>
                 </svg>
-                <p>点击选择文件或拖放图像文件（最多10张）<br>或按 Ctrl+V 粘贴剪贴板中的图像</p>
-                <input type="file" id="imageInput" accept="image/*" multiple style="display: none;">
+                <p>点击选择文件或拖放文件（最多10个）<br>或按 Ctrl+V 粘贴剪贴板中的文件</p>
+                <input type="file" id="fileInput" multiple style="display: none;">
             </div>
             <div class="thumbnails-grid" id="previewContainer"></div>
         </div>
@@ -126,12 +125,17 @@
             </div>
             <textarea id="message" placeholder="请输入消息内容，支持 Markdown 格式，例如：**粗体**、*斜体*、# 标题 等"></textarea>
             <div class="markdown-preview" id="markdownPreview"></div>
+            <div class="channel-actions" style="margin-top: calc(var(--grid-unit) * 1.5);">
+                <button class="secondary-btn" id="sequentialBtn" onclick="toggleSendMode('sequential')">逐条发送</button>
+                <button class="primary-btn" id="parallelBtn" onclick="toggleSendMode('parallel')">并行发送</button>
+            </div>
         </div>
 
         <!-- 底部操作区 -->
         <div class="action-buttons">
-            <button class="primary-btn" onclick="sendImage()">发送图像+消息</button>
-            <button class="secondary-btn" onclick="sendText()">仅发送文本</button>
+            <button class="primary-btn" onclick="sendFile()">发送文件</button>
+            <button class="secondary-btn" onclick="sendText()">发送文本</button>
+            <button class="primary-btn" onclick="sendFileAndText()">发送文件和文本</button>
         </div>
 
         <div class="status-log-card card">

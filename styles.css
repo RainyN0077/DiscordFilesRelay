@@ -378,7 +378,7 @@ input[type="number"].slider-input {
     margin-top: calc(var(--grid-unit) * 1.5);
 }
 
-/* 内容交互区 - 图像上传 */
+/* 内容交互区 - 文件上传 */
 .upload-area {
     border: 2px dashed var(--upload-border);
     border-radius: 8px;
@@ -410,17 +410,35 @@ input[type="number"].slider-input {
 
 .thumbnail {
     position: relative;
-    aspect-ratio: 16 / 9;
     border-radius: 4px;
     overflow: hidden;
     border: 1px solid var(--border-color);
     transition: border-color 0.3s;
+    padding: calc(var(--grid-unit));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 
-.thumbnail img {
+.file-preview {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
     width: 100%;
-    height: 100%;
-    object-fit: cover;
+}
+
+.file-preview span {
+    font-size: calc(var(--grid-unit) * 1.1);
+    color: var(--text-normal);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+}
+
+.file-preview span:nth-child(2) {
+    font-size: calc(var(--grid-unit));
+    color: var(--text-muted);
 }
 
 .thumbnail .remove-btn {
