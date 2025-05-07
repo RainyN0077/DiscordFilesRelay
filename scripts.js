@@ -1,9 +1,10 @@
 // --- 全局变量 ---
 let fileItems = []; // 存储多个文件
 let channelCount = 1; // 频道输入框计数器
-let channelStates = {}; // 存储每个频道的启用/禁用状态 { channelIndex: boolean }
+// 修改 channelStates 结构以存储 enabled, spoiler, 和 url
+let channelStates = {}; // 存储每个频道的启用/禁用/剧透状态 { channelIndex: { enabled: boolean, spoiler: boolean, url: string } }
 let sendMode = 'sequential'; // 'sequential' 或 'parallel'
-let uploadStartTime = 0; // 上传开始时间
+let uploadStartTime = 0; // Upload start time (not used directly in this version, but kept)
 let totalUploadedBytes = 0; // 总上传字节数 (用于并行模式的累加)
 let lastSpeedUpdateTime = 0; // 上次速度更新时间
 let lastUploadedBytesSnapshot = 0; // 上次速度更新时的总字节数
@@ -259,9 +260,10 @@ function getRandomDelay() {
 // --- 频道管理 ---
 function addChannel() {
     channelCount++;
-    const newChannelDiv = createChannelElement(channelCount, '', true);
+    // Initialize state for the new channel
+    channelStates[channelCount] = { enabled: true, spoiler: false, url: '' };
+    const newChannelDiv = createChannelElement(channelCount, channelStates[channelCount]);
     channelGroup.appendChild(newChannelDiv);
-    channelStates[channelCount] = true; // 新频道默认启用
     setupChannelInputListeners(newChannelDiv.querySelector('input[type="text"]'), channelCount);
     saveData();
 }
@@ -271,14 +273,12 @@ function removeChannel(id) {
     if (channelDiv) {
         channelDiv.remove();
         delete channelStates[id];
-        // 如果删除了最后一个，自动添加一个
-        if (document.querySelectorAll('#channelGroup .channel-item').length === 0) {
+        // If deleted the last one, add a new default one
+        if (Object.keys(channelStates).length === 0) {
             addChannel();
         } else {
-             // 更新 channelCount 为当前最大 ID (如果需要精确跟踪的话)
-            const remainingIds = Array.from(document.querySelectorAll('#channelGroup .channel-item'))
-                                     .map(el => parseInt(el.id.split('-')[1]));
-            channelCount = remainingIds.length > 0 ? Math.max(...remainingIds) : 0;
+             // Re-calculate channelCount based on remaining IDs if needed, or just increment on add
+             // Keeping channelCount as a simple counter for new IDs is fine too.
         }
         saveData();
     }
@@ -288,11 +288,17 @@ function toggleChannel(id) {
     const channelDiv = document.getElementById(`channel-${id}`);
     const input = channelDiv.querySelector('input[type="text"]');
     const toggleBtn = channelDiv.querySelector('.channel-toggle-btn');
-    const isEnabled = !channelStates[id]; // Toggle the state
+    const spoilerBtn = channelDiv.querySelector('.spoiler-toggle-btn'); // Get spoiler button
+    const isEnabled = !(channelStates[id]?.enabled ?? true); // Toggle the state, default to true if state missing
 
-    channelStates[id] = isEnabled;
+    if (!channelStates[id]) channelStates[id] = { enabled: true, spoiler: false, url: '' }; // Ensure state exists
+    channelStates[id].enabled = isEnabled;
+
     channelDiv.classList.toggle('disabled', !isEnabled);
     input.disabled = !isEnabled;
+    // Also disable spoiler button if channel is disabled
+    if(spoilerBtn) spoilerBtn.disabled = !isEnabled;
+
     toggleBtn.classList.toggle('enabled-btn', isEnabled);
     toggleBtn.classList.toggle('disabled-btn', !isEnabled);
     toggleBtn.textContent = isEnabled ? '已启用' : '已禁用';
@@ -300,7 +306,7 @@ function toggleChannel(id) {
     if (isEnabled && input.value.trim()) {
         fetchChannelInfo(id);
     } else if (!isEnabled) {
-        // 如果禁用，清空识别信息
+        // If disabled, clear identification info
          const channelNameSpan = document.getElementById(`channel-name-${id}`);
          if(channelNameSpan) {
              channelNameSpan.textContent = '服务器：未识别 | 频道：未识别';
@@ -309,10 +315,29 @@ function toggleChannel(id) {
     saveData();
 }
 
+// 新增：切换剧透标签状态
+function toggleSpoiler(id) {
+    const spoilerBtn = document.getElementById(`spoiler-btn-${id}`);
+     if (!spoilerBtn) return;
+
+    if (!channelStates[id]) channelStates[id] = { enabled: true, spoiler: false, url: '' }; // Ensure state exists
+
+    const isSpoiler = !(channelStates[id].spoiler ?? false); // Toggle state, default to false
+    channelStates[id].spoiler = isSpoiler;
+
+    spoilerBtn.classList.toggle('spoiler-on', isSpoiler);
+    spoilerBtn.classList.toggle('spoiler-off', !isSpoiler);
+    spoilerBtn.textContent = isSpoiler ? '剧透' : '无剧透';
+
+    updateStatus(`状态：频道 ${id} (${document.getElementById(`channel-name-${id}`)?.textContent || '未识别'}) 剧透标签已${isSpoiler ? '开启' : '关闭'}。`, 'info');
+    saveData();
+}
+
+
 function enableAllChannels() {
     Object.keys(channelStates).forEach(idStr => {
         const id = parseInt(idStr);
-        if (!channelStates[id]) { // Only toggle if currently disabled
+        if (!channelStates[id]?.enabled) { // Only toggle if currently disabled
             toggleChannel(id);
         }
     });
@@ -321,22 +346,26 @@ function enableAllChannels() {
 function disableAllChannels() {
      Object.keys(channelStates).forEach(idStr => {
         const id = parseInt(idStr);
-        if (channelStates[id]) { // Only toggle if currently enabled
+        if (channelStates[id]?.enabled) { // Only toggle if currently enabled
             toggleChannel(id);
         }
     });
 }
 
-function createChannelElement(id, url, isEnabled) {
+// 修改 createChannelElement 以接受 channelData 对象
+function createChannelElement(id, data) {
+    const { url, enabled, spoiler } = data;
     const div = document.createElement('div');
-    div.className = `channel-item${isEnabled ? '' : ' disabled'}`;
+    div.className = `channel-item${enabled ? '' : ' disabled'}`;
     div.id = `channel-${id}`;
     div.innerHTML = `
-        <button class="channel-toggle-btn ${isEnabled ? 'enabled-btn' : 'disabled-btn'}" onclick="toggleChannel(${id})">${isEnabled ? '已启用' : '已禁用'}</button>
+        <button class="channel-toggle-btn ${enabled ? 'enabled-btn' : 'disabled-btn'}" onclick="toggleChannel(${id})" ${enabled ? '' : 'disabled'}>${enabled ? '已启用' : '已禁用'}</button>
         <div class="input-group channel-info">
             <span id="channel-name-${id}">服务器：未识别 | 频道：未识别</span>
-            <input type="text" value="${url}" placeholder="请输入目标频道地址，例如：https://discord.com/channels/xxx/yyy" ${isEnabled ? '' : 'disabled'}>
+            <input type="text" value="${url}" placeholder="请输入目标频道地址，例如：https://discord.com/channels/xxx/yyy" ${enabled ? '' : 'disabled'}>
         </div>
+        <!-- 剧透标签按钮 -->
+        <button class="spoiler-toggle-btn ${spoiler ? 'spoiler-on' : 'spoiler-off'}" id="spoiler-btn-${id}" onclick="toggleSpoiler(${id})" ${enabled ? '' : 'disabled'}>${spoiler ? '剧透' : '无剧透'}</button>
         <button class="delete-btn" onclick="removeChannel(${id})">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
                 <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
@@ -348,31 +377,36 @@ function createChannelElement(id, url, isEnabled) {
 
 function setupChannelInputListeners(inputElement, id) {
     inputElement.addEventListener('input', () => {
+        if (!channelStates[id]) channelStates[id] = { enabled: true, spoiler: false, url: '' };
+        channelStates[id].url = inputElement.value.trim(); // Update URL in state
         saveData();
-        if (channelStates[id]) fetchChannelInfo(id); // Fetch info while typing if enabled
+        if (channelStates[id].enabled && inputElement.value.trim()) {
+             // Add a small debounce to avoid excessive API calls while typing
+            if (inputElement._fetchTimeout) clearTimeout(inputElement._fetchTimeout);
+            inputElement._fetchTimeout = setTimeout(() => fetchChannelInfo(id), 500);
+        } else {
+             // Clear info if input is empty
+             const channelNameSpan = document.getElementById(`channel-name-${id}`);
+             if(channelNameSpan) {
+                 channelNameSpan.textContent = '服务器：未识别 | 频道：未识别';
+             }
+        }
     });
-    inputElement.addEventListener('change', () => { // Also fetch on change (e.g., paste)
-        saveData();
-        if (channelStates[id]) fetchChannelInfo(id);
-    });
-     inputElement.addEventListener('blur', () => { // Fetch on blur too
-        saveData();
-        if (channelStates[id]) fetchChannelInfo(id);
-    });
+    // No need for 'change' or 'blur' listeners if 'input' handles URL updates and fetches
 }
+
 
 async function fetchChannelInfo(id) {
     const apiToken = apiTokenInput.value.trim();
     const channelItem = document.getElementById(`channel-${id}`);
-    if (!channelItem || !channelStates[id]) return; // Don't fetch if disabled
+     if (!channelItem || !channelStates[id]?.enabled) return; // Don't fetch if disabled or item not found
 
-    const channelInput = channelItem.querySelector('input[type="text"]');
-    const channelUrl = channelInput.value.trim();
+    const channelUrl = channelStates[id].url.trim(); // Get URL from state
     const channelNameSpan = document.getElementById(`channel-name-${id}`);
 
     if (!apiToken) {
         channelNameSpan.textContent = '服务器：需Token | 频道：需Token';
-        return; // Don't log status if only token is missing
+        return;
     }
     if (!channelUrl) {
         channelNameSpan.textContent = '服务器：未识别 | 频道：未识别';
@@ -390,7 +424,7 @@ async function fetchChannelInfo(id) {
     channelNameSpan.textContent = '服务器：获取中... | 频道：获取中...';
 
     try {
-        const timeout = 5000; // 5 seconds
+        const timeout = 8000; // Increased timeout
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);
 
@@ -403,6 +437,8 @@ async function fetchChannelInfo(id) {
         clearTimeout(timeoutId); // Clear timeout if fetch succeeded
 
         if (!channelResponse.ok) {
+            const errorText = await channelResponse.text(); // Get raw text for more info
+             console.error(`频道信息获取失败 (${channelResponse.status}): ${errorText}`);
             throw new Error(`频道信息获取失败 (${channelResponse.status})`);
         }
         const channelData = await channelResponse.json();
@@ -600,7 +636,7 @@ function stopUploadSpeedUpdate() {
         clearInterval(speedUpdateInterval);
         speedUpdateInterval = null;
         // Set final speed to 0 or leave the last calculated value? Let's reset.
-        popupUploadSpeed.textContent = '上传速度：0 B/s';
+        // popupUploadSpeed.textContent = '上传速度：0 B/s'; // Keep the last speed
     }
 }
 
@@ -612,16 +648,8 @@ function saveData() {
     localStorage.setItem('maxDelay', maxDelayInput.value);
     localStorage.setItem('message', messageInput.value); // Save full message including whitespace potentially
 
-    const channelData = {};
-     const channelItems = document.querySelectorAll('#channelGroup .channel-item');
-     channelItems.forEach(item => {
-         const id = parseInt(item.id.split('-')[1]);
-         const input = item.querySelector('input[type="text"]');
-         const url = input.value.trim();
-         const enabled = channelStates[id] ?? true; // Default to true if state somehow missing
-         channelData[id] = { url, enabled };
-     });
-    localStorage.setItem('channelData', JSON.stringify(channelData));
+    // Save the entire channelStates object
+    localStorage.setItem('channelData', JSON.stringify(channelStates));
     localStorage.setItem('sendMode', sendMode); // Save send mode
 }
 
@@ -654,12 +682,14 @@ function loadSavedData() {
         const channels = JSON.parse(savedChannelData);
         Object.entries(channels).forEach(([idStr, data]) => {
             const id = parseInt(idStr);
-            const { url, enabled } = data;
-            channelStates[id] = enabled;
-            const channelDiv = createChannelElement(id, url, enabled);
+            // Ensure data structure is correct, provide defaults for older saved data
+            const { url = '', enabled = true, spoiler = false } = data;
+
+            channelStates[id] = { url, enabled, spoiler }; // Load state
+            const channelDiv = createChannelElement(id, channelStates[id]); // Create element based on state
             channelGroup.appendChild(channelDiv);
             const input = channelDiv.querySelector('input[type="text"]');
-            setupChannelInputListeners(input, id);
+            setupChannelInputListeners(input, id); // Setup input listeners
             if (enabled && url) {
                 fetchChannelInfo(id); // Fetch info for enabled channels with URLs
             }
@@ -668,7 +698,7 @@ function loadSavedData() {
     }
      // Ensure there's at least one channel input
     if (Object.keys(channelStates).length === 0) {
-        addChannel(); // Adds channel 1
+        addChannel(); // Adds channel 1 and initializes state
         channelCount = 1;
     } else {
         channelCount = maxId; // Set counter to the highest loaded ID
@@ -695,18 +725,18 @@ function prepareSend() {
     }
 
     const enabledChannels = Object.entries(channelStates)
-        .filter(([id, enabled]) => enabled)
-        .map(([idStr, enabled]) => {
+        .filter(([id, state]) => state.enabled)
+        .map(([idStr, state]) => {
             const id = parseInt(idStr);
-            const input = document.querySelector(`#channel-${id} input[type="text"]`);
-            const url = input ? input.value.trim() : '';
+            const url = state.url.trim();
             const channelIdMatch = url.match(/channels\/\d+\/(\d+)/);
             const channelId = channelIdMatch ? channelIdMatch[1] : null;
             return {
                 originalIndex: id, // Keep track of the original ID for progress updates
                 url: url,
                 channelId: channelId,
-                name: document.getElementById(`channel-name-${id}`)?.textContent || `频道 ${id}` // For display
+                name: document.getElementById(`channel-name-${id}`)?.textContent || `频道 ${id}`, // For display
+                spoiler: state.spoiler // Include spoiler state
             };
         })
         .filter(channel => channel.url && channel.channelId); // Filter out invalid or empty URLs/IDs
@@ -886,18 +916,28 @@ async function sendSingleRequest(apiToken, channel, type, message, onProgress) {
     if (type === 'file' || type === 'fileAndText') {
         useXhr = true;
         const formData = new FormData();
+        // Check spoiler state for this channel
+        const isSpoiler = channelStates[channel.originalIndex]?.spoiler ?? false;
+
         let totalSize = 0;
         fileItems.forEach((file, index) => {
-            formData.append(`file${index}`, file); // Discord expects file0, file1, ...
-             totalSize += file.size;
+            // Prepend SPOILER_ if spoiler is enabled for this channel
+            const filename = isSpoiler ? `SPOILER_${file.name}` : file.name;
+            formData.append(`file${index}`, file, filename); // Append file with potentially modified name
+            totalSize += file.size;
         });
-        if (type === 'fileAndText' && message) {
-            formData.append('payload_json', JSON.stringify({ content: message })); // Attach message as payload_json
+
+        if (message) { // Include message if sending text or file+text
+            // Note: If sending files, message content goes in payload_json
+            formData.append('payload_json', JSON.stringify({ content: message }));
         }
+
         body = formData;
+
     } else if (type === 'text') {
         headers['Content-Type'] = 'application/json';
         body = JSON.stringify({ content: message });
+         useXhr = false; // No need for XHR progress on text only
     }
 
     return new Promise((resolve, reject) => {
@@ -928,9 +968,23 @@ async function sendSingleRequest(apiToken, channel, type, message, onProgress) {
                      // Ensure progress hits 100% on success
                     onProgress(100);
                     // Make sure final bytes are accounted for
-                    const finalDelta = xhr.upload.total - channelUploadedBytes;
-                    if (finalDelta > 0) totalUploadedBytes += finalDelta;
-                    resolve(xhr.response);
+                    // This might be tricky with multiple parallel uploads updating totalUploadedBytes
+                    // A simpler approach for totalUploadedBytes in parallel might be to sum up final totals
+                    // from each XHR. But for progress bar updates, the delta approach is better.
+                    // Let's ensure the final total reflects completion.
+                     const finalDelta = xhr.upload.total - channelUploadedBytes;
+                     if (finalDelta > 0) totalUploadedBytes += finalDelta;
+
+                    try {
+                         // Discord API usually returns JSON on success
+                         const responseData = JSON.parse(xhr.responseText);
+                         resolve(responseData);
+                    } catch (e) {
+                         // Handle cases where response might not be JSON
+                         console.warn(`Received non-JSON response from Discord API for channel ${channel.originalIndex}:`, xhr.responseText);
+                         resolve({}); // Resolve with empty object or handle as needed
+                    }
+
                 } else {
                     try {
                         const errorData = JSON.parse(xhr.responseText);
@@ -942,7 +996,7 @@ async function sendSingleRequest(apiToken, channel, type, message, onProgress) {
             };
 
             xhr.onerror = () => {
-                reject(new Error('网络错误'));
+                reject(new Error('网络错误或请求被中断'));
             };
 
             xhr.ontimeout = () => {
@@ -954,13 +1008,25 @@ async function sendSingleRequest(apiToken, channel, type, message, onProgress) {
         } else {
             // Use fetch for simple text messages (no progress needed)
             fetch(url, { method: 'POST', headers, body })
-                .then(response => {
+                .then(async response => { // Use async to await response.json()
                     if (response.ok) {
                         onProgress(100); // Text messages are instant, mark as 100%
-                        return response.json(); // Or response.text() if no JSON expected
+                         try {
+                            const data = await response.json();
+                            return data;
+                         } catch (e) {
+                             // Handle cases where response might not be JSON (e.g. 204 No Content)
+                             return {}; // Resolve with empty object
+                         }
                     } else {
-                        return response.json().then(err => { throw new Error(err.message || `HTTP ${response.status}`); })
-                                         .catch(() => { throw new Error(`HTTP ${response.status}`); }); // Handle non-JSON errors
+                         // Try to parse JSON error, fallback to status text
+                        const errorText = await response.text();
+                         try {
+                             const errorData = JSON.parse(errorText);
+                              throw new Error(errorData.message || `HTTP ${response.status}`);
+                         } catch {
+                              throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 100)}...`); // Include part of response text
+                         }
                     }
                 })
                 .then(data => resolve(data))
@@ -1000,15 +1066,32 @@ function delayWithProgress(ms, channelIndex, startPercent, endPercent) {
 // --- Initialization ---
 window.onload = () => {
     loadTheme();
-    loadSavedData();
+    loadSavedData(); // This will now load channels and their states including spoiler
     initializeLottie();
-    // Ensure input focus works on mobile (optional but good practice)
-    // ensureInputFocus();
+    // Add event listeners for saving data on input change (already done below)
+    // Add listener for the new close button in the popup (already done below)
+
+    // Initial setup if no channels were loaded
+    if (Object.keys(channelStates).length === 0) {
+         // This case is handled by loadSavedData calling addChannel()
+         // So no need to call addChannel() here directly.
+    } else {
+        // Ensure event listeners are attached to loaded inputs
+        Object.keys(channelStates).forEach(idStr => {
+            const id = parseInt(idStr);
+            const channelDiv = document.getElementById(`channel-${id}`);
+            if (channelDiv) {
+                const input = channelDiv.querySelector('input[type="text"]');
+                if (input) setupChannelInputListeners(input, id);
+                // Spoiler button onclick is in HTML, no need to re-attach here
+            }
+        });
+    }
 };
 
 // Add event listeners for saving data on input change
-apiTokenInput.addEventListener('input', saveData);
-messageInput.addEventListener('input', saveData);
+// apiTokenInput.addEventListener('input', saveData); // Handled by pasteToken and loadSavedData setting value
+// messageInput.addEventListener('input', saveData); // Already has listener above
 
 // Add listener for the new close button in the popup
 document.querySelector('#progressPopup .secondary-btn').addEventListener('click', hideProgressPopup);

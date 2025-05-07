@@ -300,7 +300,19 @@ input[type="number"].slider-input {
     border-bottom: 1px solid var(--border-color);
     transition: background-color 0.3s;
     pointer-events: auto;
+    /* Adjust layout to accommodate spoiler button */
+    gap: calc(var(--grid-unit)); /* Spacing between items in the flex container */
 }
+
+.channel-item > .input-group.channel-info {
+     flex-grow: 1; /* Allow input group to take available space */
+     margin-bottom: 0; /* Remove default margin-bottom from input-group */
+}
+
+.channel-item .channel-info input[type="text"] {
+    width: 100%; /* Ensure input takes full width of its container */
+}
+
 
 .channel-item:hover {
     background-color: var(--hover-bg);
@@ -311,7 +323,7 @@ input[type="number"].slider-input {
 }
 
 .channel-item .channel-toggle-btn {
-    margin-right: calc(var(--grid-unit));
+    /* margin-right: calc(var(--grid-unit)); */ /* Removed margin, using gap on parent */
     padding: calc(var(--grid-unit) / 2) calc(var(--grid-unit));
     border: none;
     border-radius: 4px;
@@ -321,6 +333,7 @@ input[type="number"].slider-input {
     transition: background-color 0.3s;
     pointer-events: auto;
     min-width: calc(var(--grid-unit) * 6);
+    flex-shrink: 0; /* Prevent button from shrinking */
 }
 
 .channel-item .channel-toggle-btn.enabled-btn {
@@ -337,7 +350,7 @@ input[type="number"].slider-input {
 }
 
 .channel-item .channel-info {
-    flex-grow: 1;
+    /* flex-grow: 1; */ /* Handled by parent gap and flex-grow on input-group */
     font-size: calc(var(--grid-unit) * 1.2);
     color: var(--text-normal);
     transition: color 0.3s;
@@ -355,6 +368,7 @@ input[type="number"].slider-input {
     display: none;
     transition: transform var(--transition-duration);
     pointer-events: auto;
+    flex-shrink: 0; /* Prevent button from shrinking */
 }
 
 .channel-item:hover .delete-btn {
@@ -371,11 +385,45 @@ input[type="number"].slider-input {
     fill: var(--button-danger-background);
 }
 
+/* 新增：剧透标签按钮样式 */
+.spoiler-toggle-btn {
+    padding: calc(var(--grid-unit) / 2) calc(var(--grid-unit));
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: calc(var(--grid-unit) * 1.1);
+    color: white;
+    transition: background-color 0.3s, transform var(--transition-duration);
+    pointer-events: auto;
+    flex-shrink: 0; /* Prevent button from shrinking */
+    min-width: calc(var(--grid-unit) * 6); /* Ensure minimum width */
+    text-align: center;
+}
+
+.spoiler-toggle-btn.spoiler-off {
+    background-color: var(--background-tertiary); /* Muted color when off */
+    color: var(--text-muted);
+}
+
+.spoiler-toggle-btn.spoiler-on {
+    background-color: var(--button-danger-background); /* Warning color when on */
+}
+
+.spoiler-toggle-btn.spoiler-off:hover {
+     background-color: var(--button-secondary-background-hover);
+}
+
+.spoiler-toggle-btn.spoiler-on:hover {
+     background-color: var(--button-danger-background-hover);
+}
+
+
 /* 频道管理按钮组 */
 .channel-actions {
     display: flex;
     gap: calc(var(--grid-unit));
     margin-top: calc(var(--grid-unit) * 1.5);
+    flex-wrap: wrap; /* 新增：允许按钮换行 */
 }
 
 /* 内容交互区 - 文件上传 */
@@ -803,12 +851,34 @@ button:hover {
     }
     .channel-item {
         padding: calc(var(--grid-unit) * 1.5);
+        flex-wrap: wrap; /* Allow items to wrap */
+        gap: calc(var(--grid-unit) * 1.5); /* Increase gap for wrapping */
     }
+    .channel-item > .channel-toggle-btn,
+    .channel-item > .delete-btn,
+    .channel-item > .spoiler-toggle-btn {
+         /* Ensure these buttons don't take full width when wrapped */
+         width: auto;
+         min-width: auto; /* Reset min-width if needed */
+         flex-basis: auto; /* Allow flex basis to be determined by content */
+    }
+    .channel-item > .channel-toggle-btn {
+         min-width: calc(var(--grid-unit) * 8); /* Keep a minimum width for toggle */
+    }
+     .channel-item > .input-group.channel-info {
+         flex-basis: 100%; /* Force input group to a new line */
+         margin-bottom: 0; /* Ensure no extra margin */
+     }
+
     .channel-item .channel-toggle-btn {
         padding: calc(var(--grid-unit)) calc(var(--grid-unit) * 1.5);
         font-size: calc(var(--grid-unit) * 1.3);
-        min-width: calc(var(--grid-unit) * 8);
     }
+     .spoiler-toggle-btn {
+         padding: calc(var(--grid-unit)) calc(var(--grid-unit) * 1.5);
+         font-size: calc(var(--grid-unit) * 1.3);
+     }
+
     .input-with-icon .icon {
         width: calc(var(--grid-unit) * 2.5);
         height: calc(var(--grid-unit) * 2.5);
@@ -823,9 +893,10 @@ button:hover {
         flex-direction: column;
         align-items: center;
     }
+    /*  让 channel-actions 中的按钮在移动端也占满宽度 */
     .channel-actions button {
         width: 100%;
-        margin-bottom: calc(var(--grid-unit));
+        margin-bottom: calc(var(--grid-unit)); /* 保持按钮间距 */
     }
     .theme-toggle {
         height: calc(var(--grid-unit) * 3.5);
@@ -865,6 +936,14 @@ button:hover {
     }
     :root {
         --grid-unit: 11px;
+    }
+    /* 确保 channel-actions 在中等屏幕上不会强制换行 */
+    .channel-actions {
+        flex-wrap: wrap; /* 允许换行，但不会强制列布局 */
+    }
+    /* Adjust channel item spacing for medium screens */
+    .channel-item {
+         gap: calc(var(--grid-unit) * 1.5);
     }
 }
 

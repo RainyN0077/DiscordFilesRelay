@@ -82,12 +82,15 @@
                     </svg>
                 </div>
                 <div class="panel-content" id="channelGroup">
-                    <div class="channel-item" id="channel-1">
+                    <!-- Channel items will be added here by JavaScript -->
+                     <div class="channel-item" id="channel-1">
                         <button class="channel-toggle-btn enabled-btn" onclick="toggleChannel(1)">已启用</button>
                         <div class="input-group channel-info">
                             <span id="channel-name-1">服务器：未识别 | 频道：未识别</span>
                             <input type="text" placeholder="请输入目标频道地址，例如：https://discord.com/channels/xxx/yyy">
                         </div>
+                        <!-- 新增：剧透标签按钮 -->
+                        <button class="spoiler-toggle-btn spoiler-off" id="spoiler-btn-1" onclick="toggleSpoiler(1)">无剧透</button>
                         <button class="delete-btn" onclick="removeChannel(1)">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
                                 <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
