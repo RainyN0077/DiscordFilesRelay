@@ -11,6 +11,7 @@ let lastUploadedBytesSnapshot = 0; // 上次速度更新时的总字节数
 let speedUpdateInterval = null; // 网速更新定时器
 let lottieAnimation; // Lottie 动画实例
 let isSending = false; // 防止重复发送
+let isAnimatingTheme = false; // 新增：防止重复触发主题动画
 
 // --- DOM 元素引用 ---
 const apiTokenInput = document.getElementById('apiToken');
@@ -31,19 +32,85 @@ const popupProgressBars = document.getElementById('popupProgressBars');
 const popupSpeedDisplay = document.getElementById('popupSpeedDisplay');
 const popupUploadSpeed = document.getElementById('popupUploadSpeed');
 const sendModeToggleBtn = document.getElementById('sendModeToggle');
+const themeToggleBtn = document.getElementById('themeToggleBtn'); // 新增：获取主题切换按钮
+const themeWipeContainer = document.getElementById('themeWipeContainer'); // 新增：获取动画容器
 
 // --- 主题管理 ---
 function toggleTheme() {
+    if (isAnimatingTheme) {
+        // 防止动画正在进行时重复触发
+        return;
+    }
+    isAnimatingTheme = true;
+    themeToggleBtn.disabled = true; // 禁用按钮
+
     const body = document.body;
-    const sunIcon = document.getElementById('sun-icon');
-    const moonIcon = document.getElementById('moon-icon');
     const isLight = body.classList.contains('theme-light');
-    body.classList.toggle('theme-light', !isLight);
-    body.classList.toggle('theme-dark', isLight);
-    sunIcon.style.display = isLight ? 'none' : 'block';
-    moonIcon.style.display = isLight ? 'block' : 'none';
-    localStorage.setItem('theme', isLight ? 'dark' : 'light');
+    const targetTheme = isLight ? 'dark' : 'light';
+
+    // 显示动画容器
+    themeWipeContainer.style.display = 'block';
+    themeWipeContainer.innerHTML = ''; // 清空之前的色块
+
+    // Determine wipe colors based on direction
+    let wipeColors;
+    if (isLight) { // Light to Dark (White -> Black) -> Red, Blue, Black
+        wipeColors = ['theme-wipe-red', 'theme-wipe-blue', 'theme-wipe-final-dark'];
+    } else { // Dark to Light (Black -> White) -> Red, Blue, White
+        wipeColors = ['theme-wipe-red', 'theme-wipe-blue', 'theme-wipe-final-light'];
+    }
+
+
+    // Create wipe elements
+    const wipes = wipeColors.map(colorClass => {
+        const wipe = document.createElement('div');
+        wipe.classList.add('theme-wipe', colorClass);
+        themeWipeContainer.appendChild(wipe);
+        return wipe;
+    });
+
+
+    // Animation timing
+    const animationDuration = 400; // CSS transition duration in ms
+    const delayBetweenWipes = 100; // Delay before starting the next wipe
+
+    // Use requestAnimationFrame to ensure elements are in DOM before triggering transition
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => { // Double rAF for safety
+            // Trigger wipes sequentially with delay
+            wipes.forEach((wipe, index) => {
+                setTimeout(() => {
+                    wipe.classList.add('active');
+                }, delayBetweenWipes * index);
+            });
+
+
+            // 切换主题并清理 (在最后一个色块动画完成后)
+            setTimeout(() => {
+                // 切换 body 的主题类
+                body.classList.toggle('theme-light', targetTheme === 'light');
+                body.classList.toggle('theme-dark', targetTheme === 'dark');
+
+                // Update sun/moon icon display
+                const sunIcon = document.getElementById('sun-icon');
+                const moonIcon = document.getElementById('moon-icon');
+                sunIcon.style.display = targetTheme === 'light' ? 'block' : 'none';
+                moonIcon.style.display = targetTheme === 'dark' ? 'block' : 'none';
+
+                // Save theme setting
+                localStorage.setItem('theme', targetTheme);
+
+                // Hide animation container and remove wipes
+                themeWipeContainer.style.display = 'none';
+                themeWipeContainer.innerHTML = ''; // Clear wipes
+
+                isAnimatingTheme = false;
+                themeToggleBtn.disabled = false; // Enable button
+            }, delayBetweenWipes * (wipes.length - 1) + animationDuration); // Wait for the last animation to complete
+        });
+    });
 }
+
 
 function loadTheme() {
     const savedTheme = localStorage.getItem('theme');
@@ -51,9 +118,11 @@ function loadTheme() {
     const sunIcon = document.getElementById('sun-icon');
     const moonIcon = document.getElementById('moon-icon');
     const isDark = savedTheme === 'dark';
+
+    // Directly set theme class and icon display, no animation on initial load
     body.classList.toggle('theme-light', !isDark);
     body.classList.toggle('theme-dark', isDark);
-    sunIcon.style.display = isDark ? 'none' : 'block';
+    sunIcon.style.display = !isDark ? 'block' : 'none';
     moonIcon.style.display = isDark ? 'block' : 'none';
 }
 
@@ -214,7 +283,6 @@ function handlePaste(e) {
     }
 }
 
-
 // --- 随机延迟 ---
 minDelayRange.addEventListener('input', updateDelay);
 maxDelayRange.addEventListener('input', updateDelay);
@@ -318,7 +386,7 @@ function toggleChannel(id) {
 // 新增：切换剧透标签状态
 function toggleSpoiler(id) {
     const spoilerBtn = document.getElementById(`spoiler-btn-${id}`);
-     if (!spoilerBtn) return;
+     if (!spoilerBtn || spoilerBtn.disabled) return; // Do nothing if button is disabled
 
     if (!channelStates[id]) channelStates[id] = { enabled: true, spoiler: false, url: '' }; // Ensure state exists
 
@@ -329,10 +397,9 @@ function toggleSpoiler(id) {
     spoilerBtn.classList.toggle('spoiler-off', !isSpoiler);
     spoilerBtn.textContent = isSpoiler ? '剧透' : '无剧透';
 
-    updateStatus(`状态：频道 ${id} (${document.getElementById(`channel-name-${id}`)?.textContent || '未识别'}) 剧透标签已${isSpoiler ? '开启' : '关闭'}。`, 'info');
+    updateStatus(`状态：频道 ${id} (${document.getElementById(`channel-name-${id}`)?.textContent || '未识别'}) 文件剧透标签已${isSpoiler ? '开启' : '关闭'}。`, 'info');
     saveData();
 }
-
 
 function enableAllChannels() {
     Object.keys(channelStates).forEach(idStr => {
@@ -359,7 +426,7 @@ function createChannelElement(id, data) {
     div.className = `channel-item${enabled ? '' : ' disabled'}`;
     div.id = `channel-${id}`;
     div.innerHTML = `
-        <button class="channel-toggle-btn ${enabled ? 'enabled-btn' : 'disabled-btn'}" onclick="toggleChannel(${id})" ${enabled ? '' : 'disabled'}>${enabled ? '已启用' : '已禁用'}</button>
+        <button class="channel-toggle-btn ${enabled ? 'enabled-btn' : 'disabled-btn'}" onclick="toggleChannel(${id})">${enabled ? '已启用' : '已禁用'}</button>
         <div class="input-group channel-info">
             <span id="channel-name-${id}">服务器：未识别 | 频道：未识别</span>
             <input type="text" value="${url}" placeholder="请输入目标频道地址，例如：https://discord.com/channels/xxx/yyy" ${enabled ? '' : 'disabled'}>
@@ -395,7 +462,6 @@ function setupChannelInputListeners(inputElement, id) {
     // No need for 'change' or 'blur' listeners if 'input' handles URL updates and fetches
 }
 
-
 async function fetchChannelInfo(id) {
     const apiToken = apiTokenInput.value.trim();
     const channelItem = document.getElementById(`channel-${id}`);
@@ -412,14 +478,15 @@ async function fetchChannelInfo(id) {
         channelNameSpan.textContent = '服务器：未识别 | 频道：未识别';
         return;
     }
-
-    const urlParts = channelUrl.match(/channels\/(\d+)\/(\d+)/);
+    
+    // *** BUG FIX: Corrected regex and extraction of guildId/channelId ***
+    const urlParts = channelUrl.match(/channels\/(\d+|@me)\/(\d+)/);
     if (!urlParts || urlParts.length < 3) {
         channelNameSpan.textContent = '服务器：格式错误 | 频道：格式错误';
         return;
     }
-    const guildId = urlParts[1];
-    const channelId = urlParts[2];
+    const guildId = urlParts[1]; // e.g., server ID or "@me"
+    const channelId = urlParts[2]; // e.g., channel ID
 
     channelNameSpan.textContent = '服务器：获取中... | 频道：获取中...';
 
@@ -662,7 +729,6 @@ function loadSavedData() {
     document.querySelector('.eye-closed').style.display = shouldBlur ? 'block' : 'none';
     document.querySelector('.eye-open').style.display = shouldBlur ? 'none' : 'block';
 
-
     // Delay
     minDelayInput.value = localStorage.getItem('minDelay') || '1';
     maxDelayInput.value = localStorage.getItem('maxDelay') || '5';
@@ -704,7 +770,6 @@ function loadSavedData() {
         channelCount = maxId; // Set counter to the highest loaded ID
     }
 
-
     // Send Mode
     loadSendMode();
 }
@@ -729,8 +794,9 @@ function prepareSend() {
         .map(([idStr, state]) => {
             const id = parseInt(idStr);
             const url = state.url.trim();
-            const channelIdMatch = url.match(/channels\/\d+\/(\d+)/);
-            const channelId = channelIdMatch ? channelIdMatch[1] : null;
+            // Parse channelId directly here for validation too
+            const channelIdMatch = url.match(/channels\/(\d+|@me)\/(\d+)/);
+            const channelId = channelIdMatch ? channelIdMatch[2] : null; // Use the correct group for channelId
             return {
                 originalIndex: id, // Keep track of the original ID for progress updates
                 url: url,
@@ -805,7 +871,6 @@ async function sendText() {
         isSending = false;
         return;
     }
-
      try {
         if (sendMode === 'sequential') {
             await sendSequentially(apiToken, channels, 'text', message);
@@ -968,19 +1033,19 @@ async function sendSingleRequest(apiToken, channel, type, message, onProgress) {
                      // Ensure progress hits 100% on success
                     onProgress(100);
                     // Make sure final bytes are accounted for
-                    // This might be tricky with multiple parallel uploads updating totalUploadedBytes
-                    // A simpler approach for totalUploadedBytes in parallel might be to sum up final totals
-                    // from each XHR. But for progress bar updates, the delta approach is better.
-                    // Let's ensure the final total reflects completion.
-                     const finalDelta = xhr.upload.total - channelUploadedBytes;
+                    const finalDelta = (xhr.upload.total || channelUploadedBytes) - channelUploadedBytes; // xhr.upload.total might not be available if not lengthComputable
                      if (finalDelta > 0) totalUploadedBytes += finalDelta;
 
                     try {
-                         // Discord API usually returns JSON on success
-                         const responseData = JSON.parse(xhr.responseText);
-                         resolve(responseData);
+                         // Discord API usually returns JSON on success, but can be empty (204)
+                         const responseText = xhr.responseText;
+                         if (responseText) {
+                             const responseData = JSON.parse(responseText);
+                             resolve(responseData);
+                         } else {
+                             resolve({}); // Empty response (e.g. 204 No Content)
+                         }
                     } catch (e) {
-                         // Handle cases where response might not be JSON
                          console.warn(`Received non-JSON response from Discord API for channel ${channel.originalIndex}:`, xhr.responseText);
                          resolve({}); // Resolve with empty object or handle as needed
                     }
@@ -990,7 +1055,7 @@ async function sendSingleRequest(apiToken, channel, type, message, onProgress) {
                         const errorData = JSON.parse(xhr.responseText);
                         reject(new Error(errorData.message || `HTTP ${xhr.status}`));
                     } catch {
-                        reject(new Error(`HTTP ${xhr.status}`));
+                        reject(new Error(`HTTP ${xhr.status}: ${xhr.responseText.substring(0,100)}`));
                     }
                 }
             };
@@ -1002,7 +1067,7 @@ async function sendSingleRequest(apiToken, channel, type, message, onProgress) {
             xhr.ontimeout = () => {
                  reject(new Error('请求超时'));
             };
-             xhr.timeout = 600000; // 10 minute timeout for uploads? Adjust as needed.
+             xhr.timeout = 600000; // 10 minute timeout for uploads.
 
             xhr.send(body);
         } else {
@@ -1012,11 +1077,15 @@ async function sendSingleRequest(apiToken, channel, type, message, onProgress) {
                     if (response.ok) {
                         onProgress(100); // Text messages are instant, mark as 100%
                          try {
-                            const data = await response.json();
-                            return data;
+                            const text = await response.text(); // Get text first
+                            if (text) { // If there is text, try to parse as JSON
+                                return JSON.parse(text);
+                            }
+                            return {}; // If no text (e.g., 204 No Content), resolve with empty object
                          } catch (e) {
-                             // Handle cases where response might not be JSON (e.g. 204 No Content)
-                             return {}; // Resolve with empty object
+                             // Handle cases where response might be non-JSON but not empty
+                             console.warn(`Received non-JSON response from Discord API (fetch) for channel ${channel.originalIndex}:`, text);
+                             return {};
                          }
                     } else {
                          // Try to parse JSON error, fallback to status text
@@ -1065,7 +1134,7 @@ function delayWithProgress(ms, channelIndex, startPercent, endPercent) {
 
 // --- Initialization ---
 window.onload = () => {
-    loadTheme();
+    loadTheme(); // Load theme without animation on initial load
     loadSavedData(); // This will now load channels and their states including spoiler
     initializeLottie();
     // Add event listeners for saving data on input change (already done below)
