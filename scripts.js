@@ -1,17 +1,15 @@
 // --- 全局变量 ---
-let fileItems = []; // 存储多个文件
-let channelCount = 1; // 频道输入框计数器
-// 修改 channelStates 结构以存储 enabled, spoiler, 和 url
-let channelStates = {}; // 存储每个频道的启用/禁用/剧透状态 { channelIndex: { enabled: boolean, spoiler: boolean, url: string } }
+let fileItems = []; // 存储多个文件 { file: File, name: string, size: number, type: string, previewUrl?: string, id: string }
+let channelGroupsData = {}; // { groupId: { name: string, enabled: boolean, panelOpen: boolean, channels: { channelId: { url: string, enabled: boolean, spoiler: boolean, fetchedInfo: { guildName: string, channelName: string } | null } } } }
 let sendMode = 'sequential'; // 'sequential' 或 'parallel'
-let uploadStartTime = 0; // Upload start time (not used directly in this version, but kept)
-let totalUploadedBytes = 0; // 总上传字节数 (用于并行模式的累加)
-let lastSpeedUpdateTime = 0; // 上次速度更新时间
-let lastUploadedBytesSnapshot = 0; // 上次速度更新时的总字节数
-let speedUpdateInterval = null; // 网速更新定时器
-let lottieAnimation; // Lottie 动画实例
-let isSending = false; // 防止重复发送
-let isAnimatingTheme = false; // 新增：防止重复触发主题动画
+let uploadStartTime = 0;
+let totalUploadedBytes = 0;
+let lastSpeedUpdateTime = 0;
+let lastUploadedBytesSnapshot = 0;
+let speedUpdateInterval = null;
+let lottieAnimation;
+let isSending = false;
+let isAnimatingTheme = false;
 
 // --- DOM 元素引用 ---
 const apiTokenInput = document.getElementById('apiToken');
@@ -24,7 +22,6 @@ const markdownPreview = document.getElementById('markdownPreview');
 const fileInput = document.getElementById('fileInput');
 const previewContainer = document.getElementById('previewContainer');
 const uploadArea = document.getElementById('uploadArea');
-const channelGroup = document.getElementById('channelGroup');
 const statusLog = document.getElementById('status');
 const loadingOverlay = document.getElementById('loadingOverlay');
 const progressPopup = document.getElementById('progressPopup');
@@ -32,36 +29,36 @@ const popupProgressBars = document.getElementById('popupProgressBars');
 const popupSpeedDisplay = document.getElementById('popupSpeedDisplay');
 const popupUploadSpeed = document.getElementById('popupUploadSpeed');
 const sendModeToggleBtn = document.getElementById('sendModeToggle');
-const themeToggleBtn = document.getElementById('themeToggleBtn'); // 新增：获取主题切换按钮
-const themeWipeContainer = document.getElementById('themeWipeContainer'); // 新增：获取动画容器
+const themeToggleBtn = document.getElementById('themeToggleBtn');
+const themeWipeContainer = document.getElementById('themeWipeContainer');
+const newGroupNameInput = document.getElementById('newGroupNameInput');
+const groupsListContainer = document.getElementById('groupsListContainer');
+const imagePreviewModal = document.getElementById('imagePreviewModal');
+const fullPreviewImage = document.getElementById('fullPreviewImage');
+
+
+// --- Helper ---
+function generateUniqueId(prefix = 'id_') {
+    return prefix + Date.now().toString(36) + Math.random().toString(36).substring(2, 7);
+}
 
 // --- 主题管理 ---
 function toggleTheme() {
-    if (isAnimatingTheme) {
-        // 防止动画正在进行时重复触发
-        return;
-    }
+    if (isAnimatingTheme) return;
     isAnimatingTheme = true;
-    themeToggleBtn.disabled = true; // 禁用按钮
+    themeToggleBtn.disabled = true;
 
     const body = document.body;
     const isLight = body.classList.contains('theme-light');
     const targetTheme = isLight ? 'dark' : 'light';
 
-    // 显示动画容器
     themeWipeContainer.style.display = 'block';
-    themeWipeContainer.innerHTML = ''; // 清空之前的色块
+    themeWipeContainer.innerHTML = ''; 
 
-    // Determine wipe colors based on direction
-    let wipeColors;
-    if (isLight) { // Light to Dark (White -> Black) -> Red, Blue, Black
-        wipeColors = ['theme-wipe-red', 'theme-wipe-blue', 'theme-wipe-final-dark'];
-    } else { // Dark to Light (Black -> White) -> Red, Blue, White
-        wipeColors = ['theme-wipe-red', 'theme-wipe-blue', 'theme-wipe-final-light'];
-    }
+    let wipeColors = isLight
+        ? ['theme-wipe-red', 'theme-wipe-blue', 'theme-wipe-final-dark']
+        : ['theme-wipe-red', 'theme-wipe-blue', 'theme-wipe-final-light'];
 
-
-    // Create wipe elements
     const wipes = wipeColors.map(colorClass => {
         const wipe = document.createElement('div');
         wipe.classList.add('theme-wipe', colorClass);
@@ -69,48 +66,35 @@ function toggleTheme() {
         return wipe;
     });
 
+    const animationDuration = 400; 
+    const delayBetweenWipes = 100;
 
-    // Animation timing
-    const animationDuration = 400; // CSS transition duration in ms
-    const delayBetweenWipes = 100; // Delay before starting the next wipe
-
-    // Use requestAnimationFrame to ensure elements are in DOM before triggering transition
     requestAnimationFrame(() => {
-        requestAnimationFrame(() => { // Double rAF for safety
-            // Trigger wipes sequentially with delay
+        requestAnimationFrame(() => { 
             wipes.forEach((wipe, index) => {
                 setTimeout(() => {
                     wipe.classList.add('active');
+                    if (index === wipes.length - 1) { // Last wipe starts
+                        body.classList.toggle('theme-light', targetTheme === 'light');
+                        body.classList.toggle('theme-dark', targetTheme === 'dark');
+                        const sunIcon = document.getElementById('sun-icon');
+                        const moonIcon = document.getElementById('moon-icon');
+                        sunIcon.style.display = targetTheme === 'light' ? 'block' : 'none';
+                        moonIcon.style.display = targetTheme === 'dark' ? 'block' : 'none';
+                        localStorage.setItem('theme', targetTheme);
+                    }
                 }, delayBetweenWipes * index);
             });
 
-
-            // 切换主题并清理 (在最后一个色块动画完成后)
             setTimeout(() => {
-                // 切换 body 的主题类
-                body.classList.toggle('theme-light', targetTheme === 'light');
-                body.classList.toggle('theme-dark', targetTheme === 'dark');
-
-                // Update sun/moon icon display
-                const sunIcon = document.getElementById('sun-icon');
-                const moonIcon = document.getElementById('moon-icon');
-                sunIcon.style.display = targetTheme === 'light' ? 'block' : 'none';
-                moonIcon.style.display = targetTheme === 'dark' ? 'block' : 'none';
-
-                // Save theme setting
-                localStorage.setItem('theme', targetTheme);
-
-                // Hide animation container and remove wipes
                 themeWipeContainer.style.display = 'none';
-                themeWipeContainer.innerHTML = ''; // Clear wipes
-
+                themeWipeContainer.innerHTML = '';
                 isAnimatingTheme = false;
-                themeToggleBtn.disabled = false; // Enable button
-            }, delayBetweenWipes * (wipes.length - 1) + animationDuration); // Wait for the last animation to complete
+                themeToggleBtn.disabled = false;
+            }, delayBetweenWipes * (wipes.length - 1) + animationDuration);
         });
     });
 }
-
 
 function loadTheme() {
     const savedTheme = localStorage.getItem('theme');
@@ -118,8 +102,6 @@ function loadTheme() {
     const sunIcon = document.getElementById('sun-icon');
     const moonIcon = document.getElementById('moon-icon');
     const isDark = savedTheme === 'dark';
-
-    // Directly set theme class and icon display, no animation on initial load
     body.classList.toggle('theme-light', !isDark);
     body.classList.toggle('theme-dark', isDark);
     sunIcon.style.display = !isDark ? 'block' : 'none';
@@ -133,7 +115,7 @@ function toggleTokenVisibility() {
     const isBlurred = apiTokenInput.classList.toggle('blurred-text');
     eyeClosed.style.display = isBlurred ? 'block' : 'none';
     eyeOpen.style.display = isBlurred ? 'none' : 'block';
-    localStorage.setItem('blurToken', isBlurred);
+    localStorage.setItem('blurToken', isBlurred.toString());
 }
 
 function pasteToken() {
@@ -186,27 +168,49 @@ messageInput.addEventListener('input', () => {
     }
 });
 
-// --- 折叠面板 ---
-function togglePanel(header) {
-    const panelContent = header.nextElementSibling;
-    header.classList.toggle('collapsed');
-    panelContent.classList.toggle('collapsed');
-}
-
-// --- 文件处理 ---
+// --- 文件处理 & 预览 ---
 function updateFilePreview() {
     previewContainer.innerHTML = '';
-    fileItems.forEach((file, index) => {
-        const thumbnail = document.createElement('div');
-        thumbnail.className = 'thumbnail';
-        thumbnail.innerHTML = `
-            <div class="file-preview">
-                <span>${file.name}</span>
-                <span>${formatFileSize(file.size)}</span>
-            </div>
+    fileItems.forEach((item, index) => {
+        const thumbnailWrapper = document.createElement('div');
+        thumbnailWrapper.className = 'thumbnail';
+        thumbnailWrapper.id = item.id;
+
+        let contentHTML = '';
+        if (item.type.startsWith('image/') && item.previewUrl) {
+            contentHTML = `
+                <img src="${item.previewUrl}" alt="${item.name}" class="file-image-preview" onclick="openImagePreviewModal('${item.previewUrl}')">
+                <div class="file-info">
+                    <span title="${item.name}">${item.name}</span>
+                    <span>${formatFileSize(item.size)}</span>
+                </div>
+            `;
+        } else if (item.type.startsWith('image/')) { // Image, but previewUrl not loaded yet
+             contentHTML = `
+                <div class="file-image-placeholder">加载中...</div>
+                <div class="file-info">
+                    <span title="${item.name}">${item.name}</span>
+                    <span>${formatFileSize(item.size)}</span>
+                </div>
+            `;
+        } else { // Not an image
+            contentHTML = `
+                <div class="file-info">
+                    <span title="${item.name}">${item.name}</span>
+                    <span>${formatFileSize(item.size)}</span>
+                </div>
+            `;
+        }
+
+        thumbnailWrapper.innerHTML = `
+            ${contentHTML}
             <button class="remove-btn" onclick="removeFile(${index})">×</button>
         `;
-        previewContainer.appendChild(thumbnail);
+        
+        thumbnailWrapper.classList.remove('fade-out-active'); // Ensure not fading out if re-added
+        void thumbnailWrapper.offsetWidth; // Trigger reflow
+        thumbnailWrapper.classList.add('fade-in'); // Add fade-in class for new elements
+        previewContainer.appendChild(thumbnailWrapper);
     });
 }
 
@@ -219,13 +223,38 @@ function formatFileSize(bytes) {
 }
 
 function removeFile(index) {
-    fileItems.splice(index, 1);
-    updateFilePreview();
+    const itemToRemove = fileItems[index];
+    if (!itemToRemove) return;
+
+    const element = document.getElementById(itemToRemove.id);
+
+    if (element) {
+        element.classList.remove('fade-in');
+        element.classList.add('fade-out-active');
+        
+        element.addEventListener('animationend', function handleAnimationEnd() {
+            element.removeEventListener('animationend', handleAnimationEnd);
+            
+            const currentActualIndex = fileItems.findIndex(fi => fi.id === itemToRemove.id);
+            if (currentActualIndex !== -1) {
+                fileItems.splice(currentActualIndex, 1);
+            }
+            // Re-render to update indices for other remove buttons and clean up the removed element from DOM implicitly
+            updateFilePreview(); 
+        }, { once: true });
+
+    } else {
+        // Fallback if element not found, just update data and re-render
+        fileItems.splice(index, 1);
+        updateFilePreview();
+    }
 }
 
+
 fileInput.addEventListener('change', handleFiles);
-uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); });
-uploadArea.addEventListener('drop', (e) => { e.preventDefault(); e.stopPropagation(); handleFiles(e); });
+uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); uploadArea.classList.add('dragover'); });
+uploadArea.addEventListener('dragleave', (e) => { e.preventDefault(); e.stopPropagation(); uploadArea.classList.remove('dragover'); });
+uploadArea.addEventListener('drop', (e) => { e.preventDefault(); e.stopPropagation(); uploadArea.classList.remove('dragover'); handleFiles(e); });
 uploadArea.addEventListener('click', () => fileInput.click());
 document.addEventListener('paste', handlePaste);
 
@@ -233,55 +262,152 @@ function handleFiles(event) {
     const files = event.target?.files || event.dataTransfer?.files;
     if (!files) return;
 
-    const currentFileCount = fileItems.length;
-    const filesToAdd = Array.from(files).filter(file =>
-        !fileItems.some(existing => existing.name === file.name && existing.size === file.size)
-    );
+    const filesToAdd = Array.from(files);
+    let addedCount = 0;
+    let ignoredCount = 0;
 
-    const availableSlots = 10 - currentFileCount;
-    const addedFiles = filesToAdd.slice(0, availableSlots);
+    for (const file of filesToAdd) {
+        if (fileItems.length >= 10) {
+            ignoredCount++;
+            continue;
+        }
+        if (!fileItems.some(existing => existing.name === file.name && existing.size === file.size)) {
+            const fileId = generateUniqueId('file_');
+            const fileItem = {
+                file: file,
+                name: file.name,
+                size: file.size,
+                type: file.type,
+                id: fileId,
+                previewUrl: null
+            };
+            fileItems.push(fileItem);
+            addedCount++;
 
-    fileItems = [...fileItems, ...addedFiles];
-
-    if (filesToAdd.length > availableSlots) {
-        updateStatus(`状态：最多只能上传10个文件，${filesToAdd.length - availableSlots}个文件已被忽略。`, 'error');
+            if (file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    fileItem.previewUrl = e.target.result;
+                    // Efficiently update only the specific item's preview if DOM element exists
+                    const existingThumb = document.getElementById(fileItem.id);
+                    if (existingThumb) {
+                        const imgEl = existingThumb.querySelector('.file-image-preview') || document.createElement('img');
+                        imgEl.src = fileItem.previewUrl;
+                        if (!imgEl.classList.contains('file-image-preview')) { // If it was a placeholder
+                            imgEl.className = 'file-image-preview';
+                            imgEl.alt = fileItem.name;
+                            imgEl.onclick = () => openImagePreviewModal(fileItem.previewUrl);
+                            const placeholder = existingThumb.querySelector('.file-image-placeholder');
+                            if (placeholder) placeholder.replaceWith(imgEl);
+                        }
+                    } else {
+                         updateFilePreview(); // Fallback to full re-render
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
+        }
     }
-    if (addedFiles.length > 0) {
-        updateFilePreview();
+
+    if (addedCount > 0) {
+        updateFilePreview(); // Initial render for new items
+    }
+    if (ignoredCount > 0) {
+        updateStatus(`状态：最多只能上传10个文件，${ignoredCount}个文件已被忽略。`, 'error');
     }
 }
 
 function handlePaste(e) {
     const items = e.clipboardData?.items;
     if (!items) return;
+    let filesPastedCount = 0;
+    let ignoredCount = 0;
 
-    let filesPasted = 0;
     for (let i = 0; i < items.length; i++) {
-        if (items[i].kind === 'file' && fileItems.length < 10) {
+        if (items[i].kind === 'file') {
+            if (fileItems.length >= 10) {
+                ignoredCount++;
+                continue;
+            }
             const blob = items[i].getAsFile();
             if (blob) {
-                 // 尝试保留原始文件名，如果不存在则生成一个
-                const originalName = blob.name || `pasted-image-${Date.now()}.png`; // 假设是图片，给个默认扩展名
-                // 生成唯一标识符避免同名文件冲突 (即使来自粘贴)
-                const uniquePrefix = `paste-${Date.now()}-${Math.random().toString(36).substring(2, 8)}-`;
-                const file = new File([blob], uniquePrefix + originalName, { type: blob.type });
+                // Try to get a reasonable extension for pasted images
+                let extension = 'png';
+                if (blob.type === 'image/jpeg') extension = 'jpg';
+                else if (blob.type === 'image/gif') extension = 'gif';
+                else if (blob.type === 'image/webp') extension = 'webp';
 
-                if (!fileItems.some(existing => existing.name === file.name)) {
-                    fileItems.push(file);
-                    filesPasted++;
+                const originalName = blob.name && blob.name !== 'image.png' ? blob.name : `pasted-image-${Date.now()}.${extension}`;
+                
+                const file = new File([blob], originalName, { type: blob.type });
+
+                if (!fileItems.some(existing => existing.name === file.name && existing.size === file.size)) { // Check using constructed file
+                     const fileId = generateUniqueId('file_');
+                     const fileItem = {
+                        file: file,
+                        name: file.name,
+                        size: file.size,
+                        type: file.type,
+                        id: fileId,
+                        previewUrl: null
+                    };
+                    fileItems.push(fileItem);
+                    filesPastedCount++;
+
+                    if (file.type.startsWith('image/')) {
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                            fileItem.previewUrl = ev.target.result;
+                            const existingThumb = document.getElementById(fileItem.id);
+                            if (existingThumb) { // Similar update logic as in handleFiles
+                                const imgEl = existingThumb.querySelector('.file-image-preview') || document.createElement('img');
+                                imgEl.src = fileItem.previewUrl;
+                                if (!imgEl.classList.contains('file-image-preview')) {
+                                    imgEl.className = 'file-image-preview';
+                                    imgEl.alt = fileItem.name;
+                                    imgEl.onclick = () => openImagePreviewModal(fileItem.previewUrl);
+                                    const placeholder = existingThumb.querySelector('.file-image-placeholder');
+                                    if (placeholder) placeholder.replaceWith(imgEl);
+                                }
+                            } else {
+                                updateFilePreview();
+                            }
+                        };
+                        reader.readAsDataURL(file);
+                    }
                 }
             }
-             if (fileItems.length >= 10) {
-                 updateStatus('状态：已达到10个文件上限，后续粘贴的文件将被忽略。', 'error');
-                 break;
-             }
         }
     }
-    if (filesPasted > 0) {
+    if (filesPastedCount > 0) {
         updateFilePreview();
-        updateStatus(`状态：从剪贴板粘贴了 ${filesPasted} 个文件。`, 'info');
+        updateStatus(`状态：从剪贴板粘贴了 ${filesPastedCount} 个文件。`, 'info');
+    }
+    if (ignoredCount > 0 && fileItems.length >=10) {
+         updateStatus('状态：已达到10个文件上限，后续粘贴的文件将被忽略。', 'error');
     }
 }
+
+
+// --- Image Preview Modal ---
+function openImagePreviewModal(imageUrl) {
+    if (!imageUrl) return;
+    fullPreviewImage.src = imageUrl;
+    imagePreviewModal.style.display = 'flex';
+    void imagePreviewModal.offsetWidth; // Force reflow
+    imagePreviewModal.classList.remove('fade-out-modal');
+    imagePreviewModal.classList.add('fade-in-modal');
+}
+
+function closeImagePreviewModal() {
+    imagePreviewModal.classList.remove('fade-in-modal');
+    imagePreviewModal.classList.add('fade-out-modal');
+    setTimeout(() => {
+        imagePreviewModal.style.display = 'none';
+        fullPreviewImage.src = ''; // Clear image
+    }, 300); // Match animation duration
+}
+
 
 // --- 随机延迟 ---
 minDelayRange.addEventListener('input', updateDelay);
@@ -292,18 +418,13 @@ maxDelayInput.addEventListener('input', updateDelay);
 function updateDelay(event) {
     const source = event.target.id.includes('Range') ? 'range' : 'input';
     const type = event.target.id.includes('min') ? 'min' : 'max';
-
     let rangeInput = type === 'min' ? minDelayRange : maxDelayRange;
     let numberInput = type === 'min' ? minDelayInput : maxDelayInput;
-
-    if (source === 'range') {
-        numberInput.value = rangeInput.value;
-    } else {
+    if (source === 'range') numberInput.value = rangeInput.value;
+    else {
         if (numberInput.value < 0) numberInput.value = 0;
         rangeInput.value = numberInput.value;
     }
-
-    // Ensure min <= max
     if (parseInt(minDelayInput.value) > parseInt(maxDelayInput.value)) {
         if (type === 'min') {
             maxDelayInput.value = minDelayInput.value;
@@ -319,269 +440,379 @@ function updateDelay(event) {
 function getRandomDelay() {
     const min = parseInt(minDelayInput.value) || 0;
     const max = parseInt(maxDelayInput.value) || 0;
-    if (min >= max) {
-        return min * 1000;
-    }
-    return (min + Math.random() * (max - min)) * 1000;
+    return (min >= max ? min : (min + Math.random() * (max - min))) * 1000;
 }
 
-// --- 频道管理 ---
-function addChannel() {
-    channelCount++;
-    // Initialize state for the new channel
-    channelStates[channelCount] = { enabled: true, spoiler: false, url: '' };
-    const newChannelDiv = createChannelElement(channelCount, channelStates[channelCount]);
-    channelGroup.appendChild(newChannelDiv);
-    setupChannelInputListeners(newChannelDiv.querySelector('input[type="text"]'), channelCount);
+// --- 频道组与频道管理 ---
+
+function addNewGroup() {
+    const groupName = newGroupNameInput.value.trim() || `新频道组 ${Object.keys(channelGroupsData).length + 1}`;
+    const groupId = generateUniqueId('group_');
+    channelGroupsData[groupId] = {
+        name: groupName,
+        enabled: true,
+        panelOpen: true,
+        channels: {}
+    };
+    newGroupNameInput.value = '';
+    saveData();
+    renderGroupsAndChannels();
+    updateStatus(`状态：已添加频道组 "${groupName}"。`, 'info');
+}
+
+function renderGroupsAndChannels() {
+    groupsListContainer.innerHTML = '';
+    Object.entries(channelGroupsData).forEach(([groupId, groupData]) => {
+        const groupElement = createGroupElement(groupId, groupData);
+        groupsListContainer.appendChild(groupElement);
+        const channelsListElement = groupElement.querySelector('.group-channels-list');
+        Object.entries(groupData.channels).forEach(([channelId, channelData]) => {
+            const channelElement = createChannelElement(groupId, channelId, channelData);
+            channelsListElement.appendChild(channelElement);
+            const inputEl = channelElement.querySelector('input[type="text"]');
+            setupChannelInputListeners(inputEl, groupId, channelId);
+            if (channelData.enabled && channelData.url && !channelData.fetchedInfo) {
+                 fetchChannelInfo(groupId, channelId);
+            }
+        });
+    });
+}
+
+function createGroupElement(groupId, groupData) {
+    const groupDiv = document.createElement('div');
+    groupDiv.className = `group-item card ${groupData.panelOpen ? '' : 'collapsed-group'}`;
+    groupDiv.id = groupId;
+
+    groupDiv.innerHTML = `
+        <div class="group-header panel-header ${groupData.panelOpen ? '' : 'collapsed'}" onclick="toggleGroupPanel('${groupId}', this)">
+            <input type="text" class="group-name-display" value="${groupData.name}" 
+                   onchange="renameGroup('${groupId}', this.value)" 
+                   onclick="event.stopPropagation()" 
+                   placeholder="组名">
+            <div class="group-actions">
+                <button class="group-toggle-btn ${groupData.enabled ? 'enabled-btn' : 'disabled-btn'}" 
+                        onclick="toggleGroupEnabledState('${groupId}', event)">
+                    ${groupData.enabled ? '已启用组' : '已禁用组'}
+                </button>
+                <button class="secondary-btn add-channel-to-group-btn" onclick="addChannelToGroup('${groupId}', event)">添加频道</button>
+                <button class="danger-btn delete-group-btn" onclick="deleteGroup('${groupId}', event)">删除组</button>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="panel-chevron">
+                    <path d="M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z"/>
+                </svg>
+            </div>
+        </div>
+        <div class="panel-content group-channels-list ${groupData.panelOpen ? '' : 'collapsed'}">
+        </div>
+        <div class="channel-actions-per-group ${groupData.panelOpen ? '' : 'collapsed'}">
+             <button class="secondary-btn" onclick="enableAllChannelsInGroup('${groupId}')">本组频道全启用</button>
+             <button class="secondary-btn" onclick="disableAllChannelsInGroup('${groupId}')">本组频道全禁用</button>
+        </div>
+    `;
+    // Ensure actions per group also collapse
+    if (!groupData.panelOpen) {
+        groupDiv.querySelector('.channel-actions-per-group').classList.add('collapsed');
+    }
+    return groupDiv;
+}
+
+function toggleGroupPanel(groupId, headerElement) {
+    const group = channelGroupsData[groupId];
+    if (!group) return;
+    group.panelOpen = !group.panelOpen;
+    
+    headerElement.classList.toggle('collapsed', !group.panelOpen);
+    const panelContent = headerElement.nextElementSibling; // .group-channels-list
+    panelContent.classList.toggle('collapsed', !group.panelOpen);
+    const actionsPerGroup = panelContent.nextElementSibling; // .channel-actions-per-group
+    if (actionsPerGroup) actionsPerGroup.classList.toggle('collapsed', !group.panelOpen);
+    
+    const groupItemDiv = document.getElementById(groupId);
+    if (groupItemDiv) groupItemDiv.classList.toggle('collapsed-group', !group.panelOpen);
+
     saveData();
 }
 
-function removeChannel(id) {
-    const channelDiv = document.getElementById(`channel-${id}`);
-    if (channelDiv) {
-        channelDiv.remove();
-        delete channelStates[id];
-        // If deleted the last one, add a new default one
-        if (Object.keys(channelStates).length === 0) {
-            addChannel();
-        } else {
-             // Re-calculate channelCount based on remaining IDs if needed, or just increment on add
-             // Keeping channelCount as a simple counter for new IDs is fine too.
+
+function renameGroup(groupId, newName) {
+    if (channelGroupsData[groupId]) {
+        channelGroupsData[groupId].name = newName.trim() || "未命名组";
+        saveData();
+        updateStatus(`状态：频道组 ${groupId} 已重命名为 "${channelGroupsData[groupId].name}"。`, 'info');
+    }
+}
+
+function toggleGroupEnabledState(groupId, event) {
+    event.stopPropagation();
+    const group = channelGroupsData[groupId];
+    if (group) {
+        group.enabled = !group.enabled;
+        const button = event.target;
+        button.textContent = group.enabled ? '已启用组' : '已禁用组';
+        button.classList.toggle('enabled-btn', group.enabled);
+        button.classList.toggle('disabled-btn', !group.enabled);
+        saveData();
+        updateStatus(`状态：频道组 "${group.name}" 已${group.enabled ? '启用' : '禁用'}。`, 'info');
+    }
+}
+
+function deleteGroup(groupId, event) {
+    event.stopPropagation();
+    const group = channelGroupsData[groupId];
+    if (group && confirm(`确定要删除频道组 "${group.name}" 及其所有频道吗？`)) {
+        const groupName = group.name;
+        delete channelGroupsData[groupId];
+        saveData();
+        renderGroupsAndChannels();
+        updateStatus(`状态：频道组 "${groupName}" 已删除。`, 'info');
+    }
+}
+
+function addChannelToGroup(groupId, event) {
+    event.stopPropagation();
+    const group = channelGroupsData[groupId];
+    if (group) {
+        const channelId = generateUniqueId('channel_');
+        group.channels[channelId] = {
+            url: '',
+            enabled: true,
+            spoiler: false,
+            fetchedInfo: null
+        };
+        if (!group.panelOpen) {
+            group.panelOpen = true; 
         }
         saveData();
+        renderGroupsAndChannels(); 
+        updateStatus(`状态：已在组 "${group.name}" 中添加新频道。`, 'info');
+        const newChannelInput = document.querySelector(`#channel_${groupId}_${channelId} input[type="text"]`);
+        if (newChannelInput) newChannelInput.focus();
     }
 }
 
-function toggleChannel(id) {
-    const channelDiv = document.getElementById(`channel-${id}`);
-    const input = channelDiv.querySelector('input[type="text"]');
-    const toggleBtn = channelDiv.querySelector('.channel-toggle-btn');
-    const spoilerBtn = channelDiv.querySelector('.spoiler-toggle-btn'); // Get spoiler button
-    const isEnabled = !(channelStates[id]?.enabled ?? true); // Toggle the state, default to true if state missing
-
-    if (!channelStates[id]) channelStates[id] = { enabled: true, spoiler: false, url: '' }; // Ensure state exists
-    channelStates[id].enabled = isEnabled;
-
-    channelDiv.classList.toggle('disabled', !isEnabled);
-    input.disabled = !isEnabled;
-    // Also disable spoiler button if channel is disabled
-    if(spoilerBtn) spoilerBtn.disabled = !isEnabled;
-
-    toggleBtn.classList.toggle('enabled-btn', isEnabled);
-    toggleBtn.classList.toggle('disabled-btn', !isEnabled);
-    toggleBtn.textContent = isEnabled ? '已启用' : '已禁用';
-
-    if (isEnabled && input.value.trim()) {
-        fetchChannelInfo(id);
-    } else if (!isEnabled) {
-        // If disabled, clear identification info
-         const channelNameSpan = document.getElementById(`channel-name-${id}`);
-         if(channelNameSpan) {
-             channelNameSpan.textContent = '服务器：未识别 | 频道：未识别';
-         }
-    }
-    saveData();
-}
-
-// 新增：切换剧透标签状态
-function toggleSpoiler(id) {
-    const spoilerBtn = document.getElementById(`spoiler-btn-${id}`);
-     if (!spoilerBtn || spoilerBtn.disabled) return; // Do nothing if button is disabled
-
-    if (!channelStates[id]) channelStates[id] = { enabled: true, spoiler: false, url: '' }; // Ensure state exists
-
-    const isSpoiler = !(channelStates[id].spoiler ?? false); // Toggle state, default to false
-    channelStates[id].spoiler = isSpoiler;
-
-    spoilerBtn.classList.toggle('spoiler-on', isSpoiler);
-    spoilerBtn.classList.toggle('spoiler-off', !isSpoiler);
-    spoilerBtn.textContent = isSpoiler ? '剧透' : '无剧透';
-
-    updateStatus(`状态：频道 ${id} (${document.getElementById(`channel-name-${id}`)?.textContent || '未识别'}) 文件剧透标签已${isSpoiler ? '开启' : '关闭'}。`, 'info');
-    saveData();
-}
-
-function enableAllChannels() {
-    Object.keys(channelStates).forEach(idStr => {
-        const id = parseInt(idStr);
-        if (!channelStates[id]?.enabled) { // Only toggle if currently disabled
-            toggleChannel(id);
-        }
-    });
-}
-
-function disableAllChannels() {
-     Object.keys(channelStates).forEach(idStr => {
-        const id = parseInt(idStr);
-        if (channelStates[id]?.enabled) { // Only toggle if currently enabled
-            toggleChannel(id);
-        }
-    });
-}
-
-// 修改 createChannelElement 以接受 channelData 对象
-function createChannelElement(id, data) {
-    const { url, enabled, spoiler } = data;
+function createChannelElement(groupId, channelId, channelData) {
     const div = document.createElement('div');
-    div.className = `channel-item${enabled ? '' : ' disabled'}`;
-    div.id = `channel-${id}`;
+    div.className = `channel-item ${channelData.enabled ? '' : 'disabled'}`;
+    div.id = `channel_${groupId}_${channelId}`;
+    const uniqueChannelNameId = `channel-name-${groupId}-${channelId}`;
+
     div.innerHTML = `
-        <button class="channel-toggle-btn ${enabled ? 'enabled-btn' : 'disabled-btn'}" onclick="toggleChannel(${id})">${enabled ? '已启用' : '已禁用'}</button>
-        <div class="input-group channel-info">
-            <span id="channel-name-${id}">服务器：未识别 | 频道：未识别</span>
-            <input type="text" value="${url}" placeholder="请输入目标频道地址，例如：https://discord.com/channels/xxx/yyy" ${enabled ? '' : 'disabled'}>
+        <button class="channel-toggle-btn ${channelData.enabled ? 'enabled-btn' : 'disabled-btn'}" 
+                onclick="toggleChannelEnabledState('${groupId}', '${channelId}')">
+            ${channelData.enabled ? '已启用' : '已禁用'}
+        </button>
+        <div class="input-group channel-info-container"> <!-- Renamed for clarity -->
+            <span id="${uniqueChannelNameId}" class="channel-fetched-info">
+                ${channelData.fetchedInfo ? `服务器：${channelData.fetchedInfo.guildName} | 频道：#${channelData.fetchedInfo.channelName}` : '服务器：未识别 | 频道：未识别'}
+            </span>
+            <input type="text" value="${channelData.url}" 
+                   placeholder="请输入目标频道地址，例如：https://discord.com/channels/xxx/yyy" 
+                   ${channelData.enabled ? '' : 'disabled'}>
         </div>
-        <!-- 剧透标签按钮 -->
-        <button class="spoiler-toggle-btn ${spoiler ? 'spoiler-on' : 'spoiler-off'}" id="spoiler-btn-${id}" onclick="toggleSpoiler(${id})" ${enabled ? '' : 'disabled'}>${spoiler ? '剧透' : '无剧透'}</button>
-        <button class="delete-btn" onclick="removeChannel(${id})">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-            </svg>
+        <button class="spoiler-toggle-btn ${channelData.spoiler ? 'spoiler-on' : 'spoiler-off'}" 
+                onclick="toggleChannelSpoilerState('${groupId}', '${channelId}')" 
+                ${channelData.enabled ? '' : 'disabled'}>
+            ${channelData.spoiler ? '剧透' : '无剧透'}
+        </button>
+        <button class="delete-btn" onclick="removeChannelFromGroup('${groupId}', '${channelId}')">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
         </button>
     `;
     return div;
 }
 
-function setupChannelInputListeners(inputElement, id) {
+function setupChannelInputListeners(inputElement, groupId, channelId) {
     inputElement.addEventListener('input', () => {
-        if (!channelStates[id]) channelStates[id] = { enabled: true, spoiler: false, url: '' };
-        channelStates[id].url = inputElement.value.trim(); // Update URL in state
-        saveData();
-        if (channelStates[id].enabled && inputElement.value.trim()) {
-             // Add a small debounce to avoid excessive API calls while typing
-            if (inputElement._fetchTimeout) clearTimeout(inputElement._fetchTimeout);
-            inputElement._fetchTimeout = setTimeout(() => fetchChannelInfo(id), 500);
-        } else {
-             // Clear info if input is empty
-             const channelNameSpan = document.getElementById(`channel-name-${id}`);
-             if(channelNameSpan) {
-                 channelNameSpan.textContent = '服务器：未识别 | 频道：未识别';
-             }
+        const group = channelGroupsData[groupId];
+        if (group && group.channels[channelId]) {
+            group.channels[channelId].url = inputElement.value.trim();
+            saveData();
+            if (group.channels[channelId].enabled && group.channels[channelId].url) {
+                if (inputElement._fetchTimeout) clearTimeout(inputElement._fetchTimeout);
+                inputElement._fetchTimeout = setTimeout(() => fetchChannelInfo(groupId, channelId), 500);
+            } else {
+                const channelNameSpan = document.getElementById(`channel-name-${groupId}-${channelId}`);
+                if (channelNameSpan) channelNameSpan.textContent = '服务器：未识别 | 频道：未识别';
+                group.channels[channelId].fetchedInfo = null;
+                saveData();
+            }
         }
     });
-    // No need for 'change' or 'blur' listeners if 'input' handles URL updates and fetches
 }
 
-async function fetchChannelInfo(id) {
+function toggleChannelEnabledState(groupId, channelId) {
+    const group = channelGroupsData[groupId];
+    const channel = group?.channels[channelId];
+    if (channel) {
+        channel.enabled = !channel.enabled;
+        saveData();
+        renderGroupsAndChannels(); 
+        updateStatus(`状态：组 "${group.name}" 内频道 ${channelId} 已${channel.enabled ? '启用' : '禁用'}。`, 'info');
+    }
+}
+
+function toggleChannelSpoilerState(groupId, channelId) {
+    const group = channelGroupsData[groupId];
+    const channel = group?.channels[channelId];
+    if (channel && channel.enabled) { 
+        channel.spoiler = !channel.spoiler;
+        saveData();
+        renderGroupsAndChannels(); 
+        updateStatus(`状态：组 "${group.name}" 内频道 ${channelId} 剧透标签已${channel.spoiler ? '开启' : '关闭'}。`, 'info');
+    }
+}
+
+function removeChannelFromGroup(groupId, channelId) {
+    const group = channelGroupsData[groupId];
+    if (group && group.channels[channelId] && confirm(`确定要从组 "${group.name}" 中删除此频道吗？`)) {
+        delete group.channels[channelId];
+        saveData();
+        renderGroupsAndChannels();
+        updateStatus(`状态：已从组 "${group.name}" 中删除频道 ${channelId}。`, 'info');
+    }
+}
+
+async function fetchChannelInfo(groupId, channelId) {
     const apiToken = apiTokenInput.value.trim();
-    const channelItem = document.getElementById(`channel-${id}`);
-     if (!channelItem || !channelStates[id]?.enabled) return; // Don't fetch if disabled or item not found
+    const group = channelGroupsData[groupId];
+    const channel = group?.channels[channelId];
+    const channelNameSpan = document.getElementById(`channel-name-${groupId}-${channelId}`);
 
-    const channelUrl = channelStates[id].url.trim(); // Get URL from state
-    const channelNameSpan = document.getElementById(`channel-name-${id}`);
+    if (!channel || !channel.enabled || !channelNameSpan) return;
+    
+    channel.fetchedInfo = null; 
 
+    const channelUrl = channel.url.trim();
     if (!apiToken) {
         channelNameSpan.textContent = '服务器：需Token | 频道：需Token';
-        return;
+        saveData(); return;
     }
     if (!channelUrl) {
         channelNameSpan.textContent = '服务器：未识别 | 频道：未识别';
-        return;
+        saveData(); return;
     }
     
-    // *** BUG FIX: Corrected regex and extraction of guildId/channelId ***
     const urlParts = channelUrl.match(/channels\/(\d+|@me)\/(\d+)/);
     if (!urlParts || urlParts.length < 3) {
         channelNameSpan.textContent = '服务器：格式错误 | 频道：格式错误';
-        return;
+        saveData(); return;
     }
-    const guildId = urlParts[1]; // e.g., server ID or "@me"
-    const channelId = urlParts[2]; // e.g., channel ID
+    const discordGuildId = urlParts[1]; 
+    const discordChannelId = urlParts[2];
 
     channelNameSpan.textContent = '服务器：获取中... | 频道：获取中...';
 
     try {
-        const timeout = 8000; // Increased timeout
+        const timeout = 8000;
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);
-
         const headers = { 'Authorization': apiToken };
 
-        // Fetch channel info
-        const channelResponse = await fetch(`https://discord.com/api/v9/channels/${channelId}`, {
+        const channelResponse = await fetch(`https://discord.com/api/v9/channels/${discordChannelId}`, {
             method: 'GET', headers, signal: controller.signal
         });
-        clearTimeout(timeoutId); // Clear timeout if fetch succeeded
+        clearTimeout(timeoutId);
 
-        if (!channelResponse.ok) {
-            const errorText = await channelResponse.text(); // Get raw text for more info
-             console.error(`频道信息获取失败 (${channelResponse.status}): ${errorText}`);
-            throw new Error(`频道信息获取失败 (${channelResponse.status})`);
-        }
+        if (!channelResponse.ok) throw new Error(`频道信息获取失败 (${channelResponse.status})`);
         const channelData = await channelResponse.json();
-        const channelName = channelData.name || '未知频道';
+        const fetchedChannelName = channelData.name || '未知频道';
 
-        // Fetch guild info (using guildId from URL, safer than relying on channelData.guild_id)
-        let guildName = '未知服务器';
-        if (guildId !== '@me') { // Don't fetch guild if it's a DM channel
+        let fetchedGuildName = '未知服务器';
+        if (discordGuildId !== '@me' && channelData.guild_id) { // Use guild_id from channel data if available
              const guildController = new AbortController();
              const guildTimeoutId = setTimeout(() => guildController.abort(), timeout);
              try {
-                const guildResponse = await fetch(`https://discord.com/api/v9/guilds/${guildId}`, {
+                const guildResponse = await fetch(`https://discord.com/api/v9/guilds/${channelData.guild_id}`, { // Use channelData.guild_id
                     method: 'GET', headers, signal: guildController.signal
                 });
                 clearTimeout(guildTimeoutId);
                 if (guildResponse.ok) {
                     const guildData = await guildResponse.json();
-                    guildName = guildData.name || '未知服务器';
-                } else {
-                     console.warn(`获取服务器 ${guildId} 信息失败: ${guildResponse.status}`);
-                     // Keep guildName as '未知服务器'
+                    fetchedGuildName = guildData.name || '未知服务器';
                 }
-             } catch (guildErr) {
-                 clearTimeout(guildTimeoutId);
-                 console.warn(`获取服务器 ${guildId} 信息时出错: ${guildErr.message}`);
-                 // Keep guildName as '未知服务器'
-             }
-        } else {
-            guildName = "私信"; // It's a DM channel
+             } catch (guildErr) { clearTimeout(guildTimeoutId); }
+        } else if (discordGuildId === '@me' || channelData.type === 1) { // DM or Group DM
+            fetchedGuildName = "私信";
+            if (channelData.recipients && channelData.recipients.length === 1) {
+                 // For 1-on-1 DM, channel name is often the other user's name.
+                 // If channelData.name is empty, try to use recipient's name.
+                 // fetchedChannelName = channelData.name || channelData.recipients[0].username || '私聊频道';
+            } else if (channelData.recipients && channelData.recipients.length > 1 && !channelData.name) {
+                // fetchedChannelName = "群组私信"; // Or list participants
+            }
         }
 
-        channelNameSpan.textContent = `服务器：${guildName} | 频道：#${channelName}`;
-        // Don't clutter status log during normal info fetching
-        // updateStatus(`状态：频道 ${id} 信息更新成功。`, 'success');
 
+        channel.fetchedInfo = { guildName: fetchedGuildName, channelName: fetchedChannelName };
+        channelNameSpan.textContent = `服务器：${fetchedGuildName} | 频道：#${fetchedChannelName}`;
     } catch (err) {
+        channel.fetchedInfo = null;
         channelNameSpan.textContent = '服务器：获取失败 | 频道：获取失败';
-        // Only log error if it's not an AbortError (timeout) or if user specifically tries to send
         if (err.name !== 'AbortError') {
-            updateStatus(`状态：频道 ${id} 信息获取失败: ${err.message}`, 'error');
+            updateStatus(`状态：频道 ${channelId} (组 "${group.name}") 信息获取失败: ${err.message}`, 'error');
         } else {
-             updateStatus(`状态：频道 ${id} 信息获取超时。`, 'error');
+             updateStatus(`状态：频道 ${channelId} (组 "${group.name}") 信息获取超时。`, 'error');
         }
+    } finally {
+        saveData();
     }
 }
 
+
+function enableAllChannelsInGroup(groupId) {
+    const group = channelGroupsData[groupId];
+    if (group) {
+        Object.values(group.channels).forEach(channel => channel.enabled = true);
+        saveData();
+        renderGroupsAndChannels();
+        updateStatus(`状态：频道组 "${group.name}" 内所有频道已启用。`, 'info');
+    }
+}
+
+function disableAllChannelsInGroup(groupId) {
+    const group = channelGroupsData[groupId];
+    if (group) {
+        Object.values(group.channels).forEach(channel => channel.enabled = false);
+        saveData();
+        renderGroupsAndChannels();
+        updateStatus(`状态：频道组 "${group.name}" 内所有频道已禁用。`, 'info');
+    }
+}
+
+function enableAllChannelsGlobally() {
+    Object.values(channelGroupsData).forEach(group => {
+        Object.values(group.channels).forEach(channel => channel.enabled = true);
+    });
+    saveData();
+    renderGroupsAndChannels();
+    updateStatus('状态：所有组的所有频道已全部启用。', 'info');
+}
+
+function disableAllChannelsGlobally() {
+    Object.values(channelGroupsData).forEach(group => {
+        Object.values(group.channels).forEach(channel => channel.enabled = false);
+    });
+    saveData();
+    renderGroupsAndChannels();
+    updateStatus('状态：所有组的所有频道已全部禁用。', 'info');
+}
+
+
 // --- 发送模式管理 ---
 function toggleSendMode() {
-    if (sendMode === 'sequential') {
-        sendMode = 'parallel';
-        sendModeToggleBtn.textContent = '切换为逐条发送';
-        sendModeToggleBtn.classList.remove('secondary-btn');
-        sendModeToggleBtn.classList.add('primary-btn'); // Highlight parallel
-    } else {
-        sendMode = 'sequential';
-        sendModeToggleBtn.textContent = '切换为并行发送';
-         sendModeToggleBtn.classList.remove('primary-btn');
-        sendModeToggleBtn.classList.add('secondary-btn'); // Default sequential
-    }
+    sendMode = sendMode === 'sequential' ? 'parallel' : 'sequential';
+    sendModeToggleBtn.textContent = sendMode === 'sequential' ? '切换为并行发送' : '切换为逐条发送';
+    sendModeToggleBtn.classList.toggle('primary-btn', sendMode === 'parallel');
+    sendModeToggleBtn.classList.toggle('secondary-btn', sendMode === 'sequential');
     localStorage.setItem('sendMode', sendMode);
     updateStatus(`状态：发送模式已切换为 ${sendMode === 'sequential' ? '逐条发送' : '并行发送'}。`, 'info');
 }
 
 function loadSendMode() {
     const savedMode = localStorage.getItem('sendMode');
-    if (savedMode === 'parallel') {
-        sendMode = 'parallel';
-        sendModeToggleBtn.textContent = '切换为逐条发送';
-        sendModeToggleBtn.classList.remove('secondary-btn');
-        sendModeToggleBtn.classList.add('primary-btn');
-    } else {
-        sendMode = 'sequential'; // Default to sequential
-        sendModeToggleBtn.textContent = '切换为并行发送';
-        sendModeToggleBtn.classList.remove('primary-btn');
-        sendModeToggleBtn.classList.add('secondary-btn');
-    }
+    sendMode = savedMode === 'parallel' ? 'parallel' : 'sequential'; 
+    sendModeToggleBtn.textContent = sendMode === 'sequential' ? '切换为并行发送' : '切换为逐条发送';
+    sendModeToggleBtn.classList.toggle('primary-btn', sendMode === 'parallel');
+    sendModeToggleBtn.classList.toggle('secondary-btn', sendMode === 'sequential');
 }
 
 // --- 状态与进度 ---
@@ -591,7 +822,6 @@ function updateStatus(message, type = 'info') {
     if (type === 'success') p.classList.add('success');
     if (type === 'error') p.classList.add('error');
     statusLog.appendChild(p);
-    // Auto-scroll to bottom
     statusLog.scrollTop = statusLog.scrollHeight;
 }
 
@@ -599,7 +829,6 @@ function showLoading() {
     loadingOverlay.style.display = 'flex';
     if (lottieAnimation) lottieAnimation.play();
 }
-
 function hideLoading() {
     loadingOverlay.style.display = 'none';
     if (lottieAnimation) lottieAnimation.stop();
@@ -608,24 +837,20 @@ function hideLoading() {
 function initializeLottie() {
     lottieAnimation = lottie.loadAnimation({
         container: document.getElementById('loadingSpinner'),
-        renderer: 'svg',
-        loop: true,
-        autoplay: false, // Control manually
+        renderer: 'svg', loop: true, autoplay: false,
         path: 'https://assets2.lottiefiles.com/packages/lf20_usmfxnmu.json'
     });
 }
 
-function showProgressPopup(channels) {
-    popupProgressBars.innerHTML = ''; // Clear previous bars
+function showProgressPopup(activeChannelsForSending) { 
+    popupProgressBars.innerHTML = '';
     totalUploadedBytes = 0;
     lastUploadedBytesSnapshot = 0;
     lastSpeedUpdateTime = Date.now();
 
-    channels.forEach((channelData, index) => {
-        // Use a unique ID for elements within the popup
-        const popupChannelId = `popup-channel-${channelData.originalIndex}`;
-        const channelNameSpan = document.getElementById(`channel-name-${channelData.originalIndex}`);
-        const displayName = channelNameSpan ? channelNameSpan.textContent : `频道 ${channelData.originalIndex}`;
+    activeChannelsForSending.forEach(ch => {
+        const popupChannelId = `popup-channel-${ch.originalChannelId}`; 
+        const displayName = ch.name; 
 
         const progressContainer = document.createElement('div');
         progressContainer.className = 'progress-container';
@@ -643,459 +868,355 @@ function showProgressPopup(channels) {
     });
 
     popupUploadSpeed.textContent = '上传速度：0 B/s';
-    popupSpeedDisplay.style.display = 'block'; // Show speed display
-    progressPopup.style.display = 'flex'; // Show the modal
-    startUploadSpeedUpdate(); // Start speed calculation
+    popupSpeedDisplay.style.display = 'block';
+    progressPopup.style.display = 'flex';
+    void progressPopup.offsetWidth; // Force reflow for animation
+    progressPopup.classList.remove('fade-out-modal');
+    progressPopup.classList.add('fade-in-modal');
+    startUploadSpeedUpdate();
 }
 
 function hideProgressPopup() {
-    progressPopup.style.display = 'none';
-    stopUploadSpeedUpdate(); // Stop speed calculation
-    popupProgressBars.innerHTML = ''; // Clear bars when closing
+    progressPopup.classList.remove('fade-in-modal');
+    progressPopup.classList.add('fade-out-modal');
+    setTimeout(() => {
+        progressPopup.style.display = 'none';
+        popupProgressBars.innerHTML = ''; // Clear bars after fade out
+    }, 300); // Match CSS animation duration
+    stopUploadSpeedUpdate();
 }
 
-// Update progress for a specific channel in the popup
-// percentage is 0-100
-function updatePopupProgressBar(originalChannelIndex, percentage) {
-    const popupChannelId = `popup-channel-${originalChannelIndex}`;
+function updatePopupProgressBar(originalChannelId, percentage) { 
+    const popupChannelId = `popup-channel-${originalChannelId}`;
     const progressElement = document.getElementById(`progress-${popupChannelId}`);
     const progressPercent = document.getElementById(`progress-percent-${popupChannelId}`);
-
     if (progressElement && progressPercent) {
-        percentage = Math.max(0, Math.min(100, percentage)); // Clamp percentage
+        percentage = Math.max(0, Math.min(100, percentage));
         progressElement.style.width = `${percentage}%`;
         progressPercent.textContent = `${Math.round(percentage)}%`;
-    } else {
-        console.warn(`Progress bar elements not found for popup channel ID: ${popupChannelId}`);
     }
 }
 
-// Update the overall upload speed display in the popup
 function updatePopupSpeedDisplay() {
     const now = Date.now();
     const elapsedSeconds = (now - lastSpeedUpdateTime) / 1000;
-
-    // Avoid division by zero and update reasonably often (e.g., > 100ms)
-    if (elapsedSeconds < 0.1) {
-        return;
-    }
-
+    if (elapsedSeconds < 0.1) return; // Avoid division by zero or too frequent updates
     const deltaBytes = totalUploadedBytes - lastUploadedBytesSnapshot;
-    const speed = deltaBytes / elapsedSeconds; // Bytes per second
-
+    const speed = deltaBytes / elapsedSeconds;
     popupUploadSpeed.textContent = `上传速度：${formatFileSize(speed)}/s`;
-
-    // Update snapshot for next calculation
     lastUploadedBytesSnapshot = totalUploadedBytes;
     lastSpeedUpdateTime = now;
 }
 
 function startUploadSpeedUpdate() {
-    if (speedUpdateInterval) return; // Already running
-    lastUploadedBytesSnapshot = totalUploadedBytes; // Reset snapshot
+    if (speedUpdateInterval) return;
+    lastUploadedBytesSnapshot = totalUploadedBytes; // Reset for current session
     lastSpeedUpdateTime = Date.now();
-    // Update speed more frequently for smoother display
-    speedUpdateInterval = setInterval(updatePopupSpeedDisplay, 250); // Update 4 times per second
+    speedUpdateInterval = setInterval(updatePopupSpeedDisplay, 250); // Update speed every 250ms
 }
-
 function stopUploadSpeedUpdate() {
     if (speedUpdateInterval) {
         clearInterval(speedUpdateInterval);
         speedUpdateInterval = null;
-        // Set final speed to 0 or leave the last calculated value? Let's reset.
-        // popupUploadSpeed.textContent = '上传速度：0 B/s'; // Keep the last speed
     }
 }
 
 // --- Data Saving/Loading ---
 function saveData() {
     localStorage.setItem('apiToken', apiTokenInput.value.trim());
-    localStorage.setItem('blurToken', apiTokenInput.classList.contains('blurred-text'));
+    localStorage.setItem('blurToken', apiTokenInput.classList.contains('blurred-text').toString());
     localStorage.setItem('minDelay', minDelayInput.value);
     localStorage.setItem('maxDelay', maxDelayInput.value);
-    localStorage.setItem('message', messageInput.value); // Save full message including whitespace potentially
-
-    // Save the entire channelStates object
-    localStorage.setItem('channelData', JSON.stringify(channelStates));
-    localStorage.setItem('sendMode', sendMode); // Save send mode
+    localStorage.setItem('message', messageInput.value);
+    localStorage.setItem('channelGroupsData', JSON.stringify(channelGroupsData));
+    localStorage.setItem('sendMode', sendMode);
 }
 
 function loadSavedData() {
-    // API Token and Blur
     apiTokenInput.value = localStorage.getItem('apiToken') || '';
     const savedBlurToken = localStorage.getItem('blurToken');
-    const shouldBlur = savedBlurToken === null || savedBlurToken === 'true'; // Default to blurred
+    const shouldBlur = savedBlurToken === null || savedBlurToken === 'true';
     apiTokenInput.classList.toggle('blurred-text', shouldBlur);
     document.querySelector('.eye-closed').style.display = shouldBlur ? 'block' : 'none';
     document.querySelector('.eye-open').style.display = shouldBlur ? 'none' : 'block';
 
-    // Delay
     minDelayInput.value = localStorage.getItem('minDelay') || '1';
     maxDelayInput.value = localStorage.getItem('maxDelay') || '5';
-    minDelayRange.value = minDelayInput.value; // Sync sliders
+    minDelayRange.value = minDelayInput.value;
     maxDelayRange.value = maxDelayInput.value;
 
-    // Message
     messageInput.value = localStorage.getItem('message') || '';
-    renderMarkdownPreview(); // Render preview if needed
+    renderMarkdownPreview();
 
-    // Channels
-    const savedChannelData = localStorage.getItem('channelData');
-    channelGroup.innerHTML = ''; // Clear existing (usually just the default one)
-    channelStates = {}; // Reset states
-    let maxId = 0;
-    if (savedChannelData) {
-        const channels = JSON.parse(savedChannelData);
-        Object.entries(channels).forEach(([idStr, data]) => {
-            const id = parseInt(idStr);
-            // Ensure data structure is correct, provide defaults for older saved data
-            const { url = '', enabled = true, spoiler = false } = data;
+    const savedChannelGroups = localStorage.getItem('channelGroupsData');
+    channelGroupsData = savedChannelGroups ? JSON.parse(savedChannelGroups) : {};
 
-            channelStates[id] = { url, enabled, spoiler }; // Load state
-            const channelDiv = createChannelElement(id, channelStates[id]); // Create element based on state
-            channelGroup.appendChild(channelDiv);
-            const input = channelDiv.querySelector('input[type="text"]');
-            setupChannelInputListeners(input, id); // Setup input listeners
-            if (enabled && url) {
-                fetchChannelInfo(id); // Fetch info for enabled channels with URLs
-            }
-             maxId = Math.max(maxId, id);
-        });
-    }
-     // Ensure there's at least one channel input
-    if (Object.keys(channelStates).length === 0) {
-        addChannel(); // Adds channel 1 and initializes state
-        channelCount = 1;
-    } else {
-        channelCount = maxId; // Set counter to the highest loaded ID
+    for (const groupId in channelGroupsData) {
+        const group = channelGroupsData[groupId];
+        if (typeof group.panelOpen === 'undefined') group.panelOpen = true; 
+        for (const channelId in group.channels) {
+            // Fetched info is simple data, no need to reset unless structure changes
+        }
     }
 
-    // Send Mode
+
+    if (Object.keys(channelGroupsData).length === 0) {
+        const defaultGroupId = generateUniqueId('group_');
+        channelGroupsData[defaultGroupId] = {
+            name: "默认组",
+            enabled: true,
+            panelOpen: true,
+            channels: {}
+        };
+        saveData(); 
+    }
+    renderGroupsAndChannels();
+
     loadSendMode();
 }
 
 // --- Core Sending Logic ---
-
-// Shared validation and preparation
 function prepareSend() {
-     if (isSending) {
+    if (isSending) {
         updateStatus('状态：错误 - 当前有发送任务正在进行中，请稍候。', 'error');
         return null;
     }
-
     const apiToken = apiTokenInput.value.trim();
     if (!apiToken) {
         updateStatus('状态：错误 - 请填写 API Token！', 'error');
         return null;
     }
 
-    const enabledChannels = Object.entries(channelStates)
-        .filter(([id, state]) => state.enabled)
-        .map(([idStr, state]) => {
-            const id = parseInt(idStr);
-            const url = state.url.trim();
-            // Parse channelId directly here for validation too
-            const channelIdMatch = url.match(/channels\/(\d+|@me)\/(\d+)/);
-            const channelId = channelIdMatch ? channelIdMatch[2] : null; // Use the correct group for channelId
-            return {
-                originalIndex: id, // Keep track of the original ID for progress updates
-                url: url,
-                channelId: channelId,
-                name: document.getElementById(`channel-name-${id}`)?.textContent || `频道 ${id}`, // For display
-                spoiler: state.spoiler // Include spoiler state
-            };
-        })
-        .filter(channel => channel.url && channel.channelId); // Filter out invalid or empty URLs/IDs
+    const activeChannelsForSending = [];
+    for (const groupId in channelGroupsData) {
+        const group = channelGroupsData[groupId];
+        if (group.enabled) {
+            for (const channelIdInGroup in group.channels) {
+                const channel = group.channels[channelIdInGroup];
+                if (channel.enabled && channel.url) {
+                    const urlParts = channel.url.match(/channels\/(\d+|@me)\/(\d+)/);
+                    const discordChannelId = urlParts ? urlParts[2] : null;
+                    if (discordChannelId) {
+                        activeChannelsForSending.push({
+                            originalGroupId: groupId,
+                            originalChannelId: channelIdInGroup, 
+                            discordChannelApiId: discordChannelId, 
+                            url: channel.url,
+                            name: channel.fetchedInfo 
+                                  ? `组: ${group.name} | 服: ${channel.fetchedInfo.guildName} | 频: #${channel.fetchedInfo.channelName}` 
+                                  : `组: ${group.name} | 频: ${channelIdInGroup}`, // Use the internal channelId as fallback
+                            spoiler: channel.spoiler
+                        });
+                    }
+                }
+            }
+        }
+    }
 
-    if (enabledChannels.length === 0) {
-        updateStatus('状态：错误 - 请至少启用一个有效格式的频道地址！', 'error');
+    if (activeChannelsForSending.length === 0) {
+        updateStatus('状态：错误 - 请至少启用一个有效格式的目标频道（在已启用的组内）！', 'error');
         return null;
     }
 
-    isSending = true; // Set sending flag
+    isSending = true;
     showLoading();
     updateStatus(`状态：开始发送任务 (${sendMode === 'sequential' ? '逐条' : '并行'})...`);
-    showProgressPopup(enabledChannels); // Show popup with only valid, enabled channels
+    showProgressPopup(activeChannelsForSending); 
 
-    return { apiToken, channels: enabledChannels };
+    return { apiToken, channels: activeChannelsForSending }; 
 }
 
-// Cleanup after sending finishes (or fails)
 function finishSend() {
     hideLoading();
-    // Don't hide the popup immediately, let user see the final status
-    // hideProgressPopup();
-    stopUploadSpeedUpdate();
+    // Keep progress popup open until explicitly closed by user, or closed after a short delay.
+    // For now, manual close is fine.
+    // hideProgressPopup(); // Or call this after a delay, or let user close
+    stopUploadSpeedUpdate(); // Ensure speed update stops regardless
     updateStatus('状态：所有发送任务已处理完毕。');
-    isSending = false; // Reset sending flag
+    isSending = false;
 }
 
-// Send File implementation
 async function sendFile() {
     const prep = prepareSend();
     if (!prep) return;
     const { apiToken, channels } = prep;
-
     if (fileItems.length === 0) {
         updateStatus('状态：错误 - 请至少选择一个文件！', 'error');
-        hideLoading();
-        hideProgressPopup(); // Hide popup if validation fails early
-        isSending = false;
-        return;
+        hideLoading(); hideProgressPopup(); isSending = false; return;
     }
-
     try {
-        if (sendMode === 'sequential') {
-            await sendSequentially(apiToken, channels, 'file');
-        } else {
-            await sendParallelly(apiToken, channels, 'file');
-        }
-    } catch (error) {
-        updateStatus(`状态：发送过程中发生意外错误: ${error.message}`, 'error');
-    } finally {
-        finishSend();
-    }
+        if (sendMode === 'sequential') await sendSequentially(apiToken, channels, 'file');
+        else await sendParallelly(apiToken, channels, 'file');
+    } catch (error) { updateStatus(`状态：发送过程中发生意外错误: ${error.message}`, 'error'); }
+    finally { finishSend(); }
 }
 
-// Send Text implementation
 async function sendText() {
     const prep = prepareSend();
     if (!prep) return;
     const { apiToken, channels } = prep;
     const message = messageInput.value.trim();
-
     if (!message) {
         updateStatus('状态：错误 - 请输入消息内容！', 'error');
-        hideLoading();
-        hideProgressPopup();
-        isSending = false;
-        return;
+        hideLoading(); hideProgressPopup(); isSending = false; return;
     }
-     try {
-        if (sendMode === 'sequential') {
-            await sendSequentially(apiToken, channels, 'text', message);
-        } else {
-            await sendParallelly(apiToken, channels, 'text', message);
-        }
-    } catch (error) {
-        updateStatus(`状态：发送过程中发生意外错误: ${error.message}`, 'error');
-    } finally {
-        finishSend();
-    }
+    try {
+        if (sendMode === 'sequential') await sendSequentially(apiToken, channels, 'text', message);
+        else await sendParallelly(apiToken, channels, 'text', message);
+    } catch (error) { updateStatus(`状态：发送过程中发生意外错误: ${error.message}`, 'error'); }
+    finally { finishSend(); }
 }
 
-// Send File and Text implementation
 async function sendFileAndText() {
     const prep = prepareSend();
     if (!prep) return;
     const { apiToken, channels } = prep;
     const message = messageInput.value.trim();
-
     if (fileItems.length === 0) {
         updateStatus('状态：错误 - 请至少选择一个文件！', 'error');
-        hideLoading();
-        hideProgressPopup();
-        isSending = false;
-        return;
+        hideLoading(); hideProgressPopup(); isSending = false; return;
     }
-     if (!message) {
-        updateStatus('状态：错误 - 请输入消息内容！', 'error');
-        hideLoading();
-        hideProgressPopup();
-        isSending = false;
-        return;
+    if (!message && fileItems.length > 0) { // Allow sending files without text if message is empty
+        // No error, just proceed.
+    } else if (!message && fileItems.length === 0) { // Should be caught by fileItems.length === 0
+         updateStatus('状态：错误 - 请选择文件或输入消息内容！', 'error');
+         hideLoading(); hideProgressPopup(); isSending = false; return;
     }
+    // If message is empty but files are present, it's valid for 'fileAndText' (becomes like 'file' with optional text)
 
-      try {
-        if (sendMode === 'sequential') {
-            await sendSequentially(apiToken, channels, 'fileAndText', message);
-        } else {
-            await sendParallelly(apiToken, channels, 'fileAndText', message);
-        }
-    } catch (error) {
-        updateStatus(`状态：发送过程中发生意外错误: ${error.message}`, 'error');
-    } finally {
-        finishSend();
-    }
+    try {
+        if (sendMode === 'sequential') await sendSequentially(apiToken, channels, 'fileAndText', message);
+        else await sendParallelly(apiToken, channels, 'fileAndText', message);
+    } catch (error) { updateStatus(`状态：发送过程中发生意外错误: ${error.message}`, 'error'); }
+    finally { finishSend(); }
 }
 
-
-// --- Sequential Sending ---
 async function sendSequentially(apiToken, channels, type, message = '') {
-    for (const channel of channels) {
+    for (const channel of channels) { 
         const delayTime = getRandomDelay();
-        updateStatus(`状态：频道 ${channel.originalIndex} (${channel.name}) - 等待 ${Math.round(delayTime / 1000)}s 延迟...`);
-        // Simulate delay progress (0% to 50%)
-        await delayWithProgress(delayTime, channel.originalIndex, 0, 50);
-
-        updateStatus(`状态：频道 ${channel.originalIndex} (${channel.name}) - 开始发送...`);
+        updateStatus(`状态：${channel.name} - 等待 ${Math.round(delayTime / 1000)}s 延迟...`);
+        await delayWithProgress(delayTime, channel.originalChannelId, 0, 50); // Delay shows 0-50% progress
+        updateStatus(`状态：${channel.name} - 开始发送...`);
         try {
             await sendSingleRequest(apiToken, channel, type, message, (progress) => {
-                // Update progress from 50% to 100% based on upload/request
-                 updatePopupProgressBar(channel.originalIndex, 50 + progress * 0.5);
+                 updatePopupProgressBar(channel.originalChannelId, 50 + progress * 0.5); // Sending is 50-100%
             });
-            updateStatus(`状态：频道 ${channel.originalIndex} (${channel.name}) - 发送成功。`, 'success');
-            updatePopupProgressBar(channel.originalIndex, 100); // Mark as complete
+            updateStatus(`状态：${channel.name} - 发送成功。`, 'success');
+            updatePopupProgressBar(channel.originalChannelId, 100);
         } catch (error) {
-            updateStatus(`状态：频道 ${channel.originalIndex} (${channel.name}) - 发送失败: ${error.message}`, 'error');
-            updatePopupProgressBar(channel.originalIndex, 100); // Mark as complete even on failure
+            updateStatus(`状态：${channel.name} - 发送失败: ${error.message}`, 'error');
+            updatePopupProgressBar(channel.originalChannelId, 100); // Mark as complete even on error for UI
         }
     }
 }
 
-// --- Parallel Sending ---
 async function sendParallelly(apiToken, channels, type, message = '') {
-    const promises = channels.map(channel => {
+    const promises = channels.map(channel => { 
         return (async () => {
             const delayTime = getRandomDelay();
-            updateStatus(`状态：频道 ${channel.originalIndex} (${channel.name}) - 等待 ${Math.round(delayTime / 1000)}s 延迟...`);
-            await delayWithProgress(delayTime, channel.originalIndex, 0, 50);
-
-            updateStatus(`状态：频道 ${channel.originalIndex} (${channel.name}) - 开始发送...`);
+            updateStatus(`状态：${channel.name} - 等待 ${Math.round(delayTime / 1000)}s 延迟...`);
+            await delayWithProgress(delayTime, channel.originalChannelId, 0, 50);
+            updateStatus(`状态：${channel.name} - 开始发送...`);
             try {
                 await sendSingleRequest(apiToken, channel, type, message, (progress) => {
-                    updatePopupProgressBar(channel.originalIndex, 50 + progress * 0.5);
+                    updatePopupProgressBar(channel.originalChannelId, 50 + progress * 0.5);
                 });
-                updateStatus(`状态：频道 ${channel.originalIndex} (${channel.name}) - 发送成功。`, 'success');
-                updatePopupProgressBar(channel.originalIndex, 100);
-                return { status: 'fulfilled', channelId: channel.originalIndex };
+                updateStatus(`状态：${channel.name} - 发送成功。`, 'success');
+                updatePopupProgressBar(channel.originalChannelId, 100);
+                return { status: 'fulfilled', channelId: channel.originalChannelId };
             } catch (error) {
-                updateStatus(`状态：频道 ${channel.originalIndex} (${channel.name}) - 发送失败: ${error.message}`, 'error');
-                updatePopupProgressBar(channel.originalIndex, 100);
-                 return { status: 'rejected', channelId: channel.originalIndex, reason: error.message };
+                updateStatus(`状态：${channel.name} - 发送失败: ${error.message}`, 'error');
+                updatePopupProgressBar(channel.originalChannelId, 100);
+                 return { status: 'rejected', channelId: channel.originalChannelId, reason: error.message };
             }
-        })(); // Immediately invoke the async function
+        })();
     });
-
-    // Wait for all parallel tasks to settle (complete or fail)
     await Promise.allSettled(promises);
 }
 
-// --- Single Request Logic (Used by both sequential and parallel) ---
 async function sendSingleRequest(apiToken, channel, type, message, onProgress) {
-    const url = `https://discord.com/api/v9/channels/${channel.channelId}/messages`;
+    const url = `https://discord.com/api/v9/channels/${channel.discordChannelApiId}/messages`;
     const headers = { 'Authorization': apiToken };
     let body = null;
-    let useXhr = false; // Use XHR only when files are involved for progress
+    let useXhr = false;
 
     if (type === 'file' || type === 'fileAndText') {
         useXhr = true;
         const formData = new FormData();
-        // Check spoiler state for this channel
-        const isSpoiler = channelStates[channel.originalIndex]?.spoiler ?? false;
-
-        let totalSize = 0;
-        fileItems.forEach((file, index) => {
-            // Prepend SPOILER_ if spoiler is enabled for this channel
-            const filename = isSpoiler ? `SPOILER_${file.name}` : file.name;
-            formData.append(`file${index}`, file, filename); // Append file with potentially modified name
-            totalSize += file.size;
+        const isSpoiler = channel.spoiler;
+        
+        // Attach files
+        fileItems.forEach((item, index) => { // Use fileItems from global scope
+            const filename = isSpoiler ? `SPOILER_${item.name}` : item.name;
+            formData.append(`files[${index}]`, item.file, filename); // Discord expects files[N]
         });
-
-        if (message) { // Include message if sending text or file+text
-            // Note: If sending files, message content goes in payload_json
-            formData.append('payload_json', JSON.stringify({ content: message }));
+        
+        // Attach payload_json for content and other message parameters
+        const payload = {};
+        if (message) payload.content = message;
+        // if (isSpoiler && fileItems.length > 0) { // Spoiler is per-file now, not global for message
+        //    // Discord handles spoiler attachments via SPOILER_ prefix
+        // }
+        // Add other potential payload fields if needed, e.g., embeds, tts etc.
+        // For attachments, payload_json is mostly for content.
+        if (Object.keys(payload).length > 0 || fileItems.length > 0) { // Must send payload_json if files are present, even if empty content
+             formData.append('payload_json', JSON.stringify(payload));
         }
-
         body = formData;
 
     } else if (type === 'text') {
         headers['Content-Type'] = 'application/json';
         body = JSON.stringify({ content: message });
-         useXhr = false; // No need for XHR progress on text only
     }
+
 
     return new Promise((resolve, reject) => {
         if (useXhr) {
             const xhr = new XMLHttpRequest();
             xhr.open('POST', url, true);
-            Object.entries(headers).forEach(([key, value]) => {
-                xhr.setRequestHeader(key, value);
-            });
-
-            let channelUploadedBytes = 0; // Track bytes for this specific channel request
-
+            Object.entries(headers).forEach(([key, value]) => xhr.setRequestHeader(key, value));
+            let channelUploadedBytes = 0;
             xhr.upload.onprogress = (event) => {
                 if (event.lengthComputable) {
-                    const currentChannelProgress = (event.loaded / event.total) * 100; // 0-100 for this request
-                    onProgress(currentChannelProgress); // Report progress to the caller (0-100)
-
-                    // Update global total uploaded bytes for speed calculation
-                    // Calculate delta for this progress event relative to last known for this channel
+                    const currentChannelProgress = (event.loaded / event.total) * 100;
+                    onProgress(currentChannelProgress);
                     const delta = event.loaded - channelUploadedBytes;
-                    totalUploadedBytes += delta; // Add the difference to the global counter
-                    channelUploadedBytes = event.loaded; // Update channel's progress marker
+                    totalUploadedBytes += delta; // Update global counter
+                    channelUploadedBytes = event.loaded;
                 }
             };
-
             xhr.onload = () => {
                 if (xhr.status >= 200 && xhr.status < 300) {
-                     // Ensure progress hits 100% on success
-                    onProgress(100);
-                    // Make sure final bytes are accounted for
-                    const finalDelta = (xhr.upload.total || channelUploadedBytes) - channelUploadedBytes; // xhr.upload.total might not be available if not lengthComputable
-                     if (finalDelta > 0) totalUploadedBytes += finalDelta;
-
+                    onProgress(100); // Ensure progress hits 100%
+                    const finalDelta = (xhr.upload.total || channelUploadedBytes) - channelUploadedBytes;
+                    if (finalDelta > 0) totalUploadedBytes += finalDelta;
                     try {
-                         // Discord API usually returns JSON on success, but can be empty (204)
-                         const responseText = xhr.responseText;
-                         if (responseText) {
-                             const responseData = JSON.parse(responseText);
-                             resolve(responseData);
-                         } else {
-                             resolve({}); // Empty response (e.g. 204 No Content)
-                         }
-                    } catch (e) {
-                         console.warn(`Received non-JSON response from Discord API for channel ${channel.originalIndex}:`, xhr.responseText);
-                         resolve({}); // Resolve with empty object or handle as needed
-                    }
-
+                         resolve(xhr.responseText ? JSON.parse(xhr.responseText) : {});
+                    } catch (e) { resolve({}); } // Resolve even if parse fails, success based on status
                 } else {
-                    try {
-                        const errorData = JSON.parse(xhr.responseText);
-                        reject(new Error(errorData.message || `HTTP ${xhr.status}`));
-                    } catch {
-                        reject(new Error(`HTTP ${xhr.status}: ${xhr.responseText.substring(0,100)}`));
-                    }
+                    let errorMsg = `HTTP ${xhr.status}`;
+                    try { errorMsg = JSON.parse(xhr.responseText).message || errorMsg; }
+                    catch { errorMsg = `${errorMsg}: ${xhr.responseText.substring(0,100)}`;}
+                    reject(new Error(errorMsg));
                 }
             };
-
-            xhr.onerror = () => {
-                reject(new Error('网络错误或请求被中断'));
-            };
-
-            xhr.ontimeout = () => {
-                 reject(new Error('请求超时'));
-            };
-             xhr.timeout = 600000; // 10 minute timeout for uploads.
-
+            xhr.onerror = () => reject(new Error('网络错误或请求被中断'));
+            xhr.ontimeout = () => reject(new Error('请求超时'));
+            xhr.timeout = 600000; // 10 minutes timeout for uploads
             xhr.send(body);
-        } else {
-            // Use fetch for simple text messages (no progress needed)
+        } else { // fetch for text-only messages
             fetch(url, { method: 'POST', headers, body })
-                .then(async response => { // Use async to await response.json()
+                .then(async response => {
                     if (response.ok) {
-                        onProgress(100); // Text messages are instant, mark as 100%
-                         try {
-                            const text = await response.text(); // Get text first
-                            if (text) { // If there is text, try to parse as JSON
-                                return JSON.parse(text);
-                            }
-                            return {}; // If no text (e.g., 204 No Content), resolve with empty object
-                         } catch (e) {
-                             // Handle cases where response might be non-JSON but not empty
-                             console.warn(`Received non-JSON response from Discord API (fetch) for channel ${channel.originalIndex}:`, text);
-                             return {};
-                         }
+                        onProgress(100);
+                        const text = await response.text();
+                        return text ? JSON.parse(text) : {};
                     } else {
-                         // Try to parse JSON error, fallback to status text
                         const errorText = await response.text();
-                         try {
-                             const errorData = JSON.parse(errorText);
-                              throw new Error(errorData.message || `HTTP ${response.status}`);
-                         } catch {
-                              throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 100)}...`); // Include part of response text
-                         }
+                        let errorMsg = `HTTP ${response.status}`;
+                        try { errorMsg = JSON.parse(errorText).message || errorMsg; }
+                        catch { errorMsg = `${errorMsg}: ${errorText.substring(0, 100)}...`; }
+                        throw new Error(errorMsg);
                     }
                 })
                 .then(data => resolve(data))
@@ -1104,66 +1225,46 @@ async function sendSingleRequest(apiToken, channel, type, message, onProgress) {
     });
 }
 
-
-// --- Helper: Delay with Progress Update ---
-function delayWithProgress(ms, channelIndex, startPercent, endPercent) {
+function delayWithProgress(ms, originalChannelId, startPercent, endPercent) { 
     return new Promise(resolve => {
         if (ms <= 0) {
-            updatePopupProgressBar(channelIndex, endPercent);
-            resolve();
-            return;
+            updatePopupProgressBar(originalChannelId, endPercent);
+            resolve(); return;
         }
         const startTime = Date.now();
-        const totalDuration = ms;
-        const percentRange = endPercent - startPercent;
-
+        const updateInterval = 50; // Update progress bar every 50ms
         const intervalId = setInterval(() => {
             const elapsedTime = Date.now() - startTime;
-            if (elapsedTime >= totalDuration) {
+            if (elapsedTime >= ms) {
                 clearInterval(intervalId);
-                updatePopupProgressBar(channelIndex, endPercent);
+                updatePopupProgressBar(originalChannelId, endPercent);
                 resolve();
             } else {
-                const progressFraction = elapsedTime / totalDuration;
-                const currentPercent = startPercent + progressFraction * percentRange;
-                updatePopupProgressBar(channelIndex, currentPercent);
+                const progressFraction = elapsedTime / ms;
+                updatePopupProgressBar(originalChannelId, startPercent + progressFraction * (endPercent - startPercent));
             }
-        }, 100); // Update progress 10 times per second during delay
+        }, updateInterval);
     });
 }
 
 // --- Initialization ---
 window.onload = () => {
-    loadTheme(); // Load theme without animation on initial load
-    loadSavedData(); // This will now load channels and their states including spoiler
+    loadTheme();
+    loadSavedData(); 
     initializeLottie();
-    // Add event listeners for saving data on input change (already done below)
-    // Add listener for the new close button in the popup (already done below)
-
-    // Initial setup if no channels were loaded
-    if (Object.keys(channelStates).length === 0) {
-         // This case is handled by loadSavedData calling addChannel()
-         // So no need to call addChannel() here directly.
-    } else {
-        // Ensure event listeners are attached to loaded inputs
-        Object.keys(channelStates).forEach(idStr => {
-            const id = parseInt(idStr);
-            const channelDiv = document.getElementById(`channel-${id}`);
-            if (channelDiv) {
-                const input = channelDiv.querySelector('input[type="text"]');
-                if (input) setupChannelInputListeners(input, id);
-                // Spoiler button onclick is in HTML, no need to re-attach here
-            }
-        });
-    }
+    document.querySelector('#progressPopup .modal-close-button').addEventListener('click', hideProgressPopup);
+    apiTokenInput.addEventListener('input', saveData);
+    
+    // Close image modal on Escape key
+    window.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && imagePreviewModal.style.display === 'flex') {
+            closeImagePreviewModal();
+        }
+    });
+    // Close image modal on click outside
+    imagePreviewModal.addEventListener('click', (event) => {
+        if (event.target === imagePreviewModal) {
+            closeImagePreviewModal();
+        }
+    });
 };
-
-// Add event listeners for saving data on input change
-// apiTokenInput.addEventListener('input', saveData); // Handled by pasteToken and loadSavedData setting value
-// messageInput.addEventListener('input', saveData); // Already has listener above
-
-// Add listener for the new close button in the popup
-document.querySelector('#progressPopup .secondary-btn').addEventListener('click', hideProgressPopup);
-
-// (Optional) Add focus helper if needed
-// function ensureInputFocus() { ... }
