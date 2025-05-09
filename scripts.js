@@ -35,6 +35,7 @@ const newGroupNameInput = document.getElementById('newGroupNameInput');
 const groupsListContainer = document.getElementById('groupsListContainer');
 const imagePreviewModal = document.getElementById('imagePreviewModal');
 const fullPreviewImage = document.getElementById('fullPreviewImage');
+const pageContainer = document.querySelector('.container');
 
 
 // --- Helper ---
@@ -77,10 +78,6 @@ function toggleTheme() {
                     if (index === wipes.length - 1) { // Last wipe starts
                         body.classList.toggle('theme-light', targetTheme === 'light');
                         body.classList.toggle('theme-dark', targetTheme === 'dark');
-                        const sunIcon = document.getElementById('sun-icon');
-                        const moonIcon = document.getElementById('moon-icon');
-                        sunIcon.style.display = targetTheme === 'light' ? 'block' : 'none';
-                        moonIcon.style.display = targetTheme === 'dark' ? 'block' : 'none';
                         localStorage.setItem('theme', targetTheme);
                     }
                 }, delayBetweenWipes * index);
@@ -89,6 +86,14 @@ function toggleTheme() {
             setTimeout(() => {
                 themeWipeContainer.style.display = 'none';
                 themeWipeContainer.innerHTML = '';
+
+                // Fade in content after wipe animation
+                if (pageContainer) {
+                    pageContainer.classList.remove('visible'); // Ensure it's not visible (resets opacity to 0 via CSS)
+                    void pageContainer.offsetWidth; // Trigger reflow
+                    pageContainer.classList.add('visible'); // Trigger fade-in via CSS transition
+                }
+                
                 isAnimatingTheme = false;
                 themeToggleBtn.disabled = false;
             }, delayBetweenWipes * (wipes.length - 1) + animationDuration);
@@ -99,13 +104,18 @@ function toggleTheme() {
 function loadTheme() {
     const savedTheme = localStorage.getItem('theme');
     const body = document.body;
-    const sunIcon = document.getElementById('sun-icon');
-    const moonIcon = document.getElementById('moon-icon');
     const isDark = savedTheme === 'dark';
     body.classList.toggle('theme-light', !isDark);
     body.classList.toggle('theme-dark', isDark);
-    sunIcon.style.display = !isDark ? 'block' : 'none';
-    moonIcon.style.display = isDark ? 'block' : 'none';
+
+    if (pageContainer) {
+        // pageContainer starts with opacity 0 due to CSS.
+        // Add 'visible' class to trigger fade-in.
+        // Add a slight delay for initial load if desired for visual pacing.
+        setTimeout(() => {
+            pageContainer.classList.add('visible');
+        }, 100); // 0.1s delay, can be 0 if no delay is preferred
+    }
 }
 
 // --- API Token 管理 ---
@@ -1249,7 +1259,7 @@ function delayWithProgress(ms, originalChannelId, startPercent, endPercent) {
 
 // --- Initialization ---
 window.onload = () => {
-    loadTheme();
+    loadTheme(); // Applies theme and initiates container fade-in
     loadSavedData(); 
     initializeLottie();
     document.querySelector('#progressPopup .modal-close-button').addEventListener('click', hideProgressPopup);

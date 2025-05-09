@@ -99,9 +99,13 @@ body {
 .container {
     width: 100%; max-width: 1280px; padding: 0 calc(var(--grid-unit) * 2);
     box-sizing: border-box; margin: 0 auto;
-    opacity: 0; /* Initially hidden for fade-in */
-    animation: fadeInAnimation 0.5s ease-out 0.1s forwards; /* Page load fade-in with slight delay */
+    opacity: 0; /* Start transparent, JS will fade it in */
+    transition: opacity 0.5s ease-out; /* Default transition for opacity */
 }
+.container.visible {
+    opacity: 1;
+}
+
 .navbar {
     width: 100%; padding: calc(var(--grid-unit) * 2) 0; display: flex;
     justify-content: space-between; align-items: center;
@@ -120,7 +124,7 @@ body {
     height: calc(var(--grid-unit) * 4); padding: 0 calc(var(--grid-unit) * 1.5);
     border-radius: 4px; background-color: var(--button-secondary-background);
     border: 1px solid var(--border-color); cursor: pointer; display: flex;
-    align-items: center; justify-content: center; gap: calc(var(--grid-unit) * 0.5);
+    align-items: center; justify-content: center; /* gap: calc(var(--grid-unit) * 0.5); Removed gap as icons are gone */
     transition: background-color 0.3s, transform var(--transition-duration), border-color 0.3s, box-shadow var(--transition-duration);
 }
 .theme-toggle:hover {
@@ -129,10 +133,7 @@ body {
     border-color: var(--text-muted);
     box-shadow: 0 3px 8px rgba(0,0,0,0.1);
 }
-.theme-toggle svg {
-    width: calc(var(--grid-unit) * 2.5); height: calc(var(--grid-unit) * 2.5);
-    fill: var(--text-normal);
-}
+/* SVG styles removed as icons are gone */
 .theme-toggle span {
     font-size: calc(var(--grid-unit) * 1.2); color: var(--text-normal); transition: color 0.3s;
 }
@@ -644,7 +645,7 @@ button:hover {
     .channel-actions-per-group button, .global-channel-actions button { width: 100%; margin-bottom: calc(var(--grid-unit)); }
 
     .theme-toggle { height: calc(var(--grid-unit) * 3.5); padding: 0 calc(var(--grid-unit)); }
-    .theme-toggle svg { width: calc(var(--grid-unit) * 2); height: calc(var(--grid-unit) * 2); }
+    /* SVG styles for theme toggle removed */
     .theme-toggle span { font-size: calc(var(--grid-unit)); }
     .navbar h1 { font-size: calc(var(--grid-unit) * 2.2); }
     .signature { font-size: calc(var(--grid-unit)); margin-top: calc(var(--grid-unit) / 3); }
