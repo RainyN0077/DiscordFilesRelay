@@ -43,6 +43,25 @@
                 </div>
             </div>
         </div>
+        
+        <div class="card">
+            <h2 class="card-title">数据存储</h2>
+            <div class="input-group">
+                <label for="storagePreference">首选存储方式:</label>
+                <select id="storagePreference">
+                    <option value="localStorage" selected>浏览器 (localStorage)</option>
+                    <option value="localFile">本地文件 (.json)</option>
+                </select>
+            </div>
+            <div id="localFileControls" style="display: none; margin-top: var(--grid-unit);">
+                <button class="secondary-btn" id="loadSettingsFileBtn">从文件加载设置</button>
+                <input type="file" id="settingsFileInput" accept=".json" style="display: none;">
+                <button class="secondary-btn" id="saveSettingsFileBtn" style="margin-left: var(--grid-unit);">保存当前设置到文件</button>
+            </div>
+             <p style="font-size: calc(var(--grid-unit) * 1); color: var(--text-muted); margin-top: var(--grid-unit);">
+                注意：选择“本地文件”存储时，保存操作会触发名为 `discord_forwarder_settings.json` 的文件下载。您需要手动将其保存到您希望的位置（例如，此工具根目录下的 `Settings` 文件夹，您可能需要手动创建该文件夹）。浏览器出于安全原因无法直接写入本地文件系统。
+            </p>
+        </div>
 
         <div class="card">
             <h2 class="card-title">随机延迟设置</h2>
@@ -50,21 +69,20 @@
                 <div class="input-group">
                     <label for="minDelay">最小延迟 (秒)</label>
                     <div class="slider-container">
-                        <input type="range" id="minDelayRange" min="0" max="10" value="1">
-                        <input type="number" id="minDelay" class="slider-input" min="0" step="1" value="1">
+                        <input type="range" id="minDelayRange" min="0" max="30" value="1" step="1">
+                        <input type="number" id="minDelay" class="slider-input" min="0" max="30" step="1" value="1">
                     </div>
                 </div>
                 <div class="input-group">
                     <label for="maxDelay">最大延迟 (秒)</label>
                     <div class="slider-container">
-                        <input type="range" id="maxDelayRange" min="0" max="10" value="5">
-                        <input type="number" id="maxDelay" class="slider-input" min="0" step="1" value="5">
+                        <input type="range" id="maxDelayRange" min="0" max="30" value="5" step="1">
+                        <input type="number" id="maxDelay" class="slider-input" min="0" max="30" step="1" value="5">
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- 频道组与频道管理 -->
         <div class="card" id="channelGroupManagementCard">
             <h2 class="card-title">频道组与频道管理</h2>
             <div class="input-group">
@@ -87,18 +105,19 @@
         </div>
 
 
-        <!-- 内容交互区 -->
         <div class="card">
             <h2 class="card-title">文件上传</h2>
             <div class="upload-area" id="uploadArea">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="width: calc(var(--grid-unit) * 3); height: calc(var(--grid-unit) * 3); fill: var(--text-muted);">
-                    <path d="M14.828 12l1.414-1.414-2.828-2.829a1 1 0 0 1 1.414-1.414l4.242 4.243a1 1 0 0 1 0 1.414l-4.242 4.243a1 1 0 1 1-1.414-1.414l2.828-2.829H5a1 1 0 0 1 0-2h11.828z"/>
-                    <path d="M7 18h10v2H7v-2zM7 14h10v2H7v-2zM5 10h4v2H5v-2zM3 6h6v2H3V6z"/>
+                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="width: calc(var(--grid-unit) * 3); height: calc(var(--grid-unit) * 3); fill: var(--text-muted);">
+                    <path d="M9.785 6.285l-4.57 4.572a1 1 0 001.414 1.414L10 8.936V20a1 1 0 102 0V8.936l3.371 3.335a1 1 0 001.414-1.414l-4.57-4.572a3.062 3.062 0 00-2.43-.998 3.063 3.063 0 00-2.43.998zM5 4a1 1 0 00-1 1v5a1 1 0 102 0V6h12v4a1 1 0 102 0V5a1 1 0 00-1-1H5z"/>
                 </svg>
-                <p>点击选择文件或拖放文件（最多10个）<br>或按 Ctrl+V 粘贴剪贴板中的文件</p>
+
+                <p>点击或拖放文件（最多10个，可拖拽排序）<br>或按 Ctrl+V 粘贴剪贴板中的文件</p>
                 <input type="file" id="fileInput" multiple style="display: none;">
             </div>
-            <div class="thumbnails-grid" id="previewContainer"></div>
+            <div class="thumbnails-grid" id="previewContainer">
+                 <p class="empty-preview-text">暂无文件</p>
+            </div>
         </div>
 
         <div class="card">
@@ -111,15 +130,13 @@
             <div class="markdown-preview" id="markdownPreview"></div>
         </div>
 
-        <!-- 发送模式切换按钮 -->
         <div class="send-mode-toggle">
             <button id="sendModeToggle" class="secondary-btn" onclick="toggleSendMode()">切换为并行发送</button>
         </div>
 
-        <!-- 底部操作区 -->
         <div class="action-buttons">
-            <button class="primary-btn" onclick="sendFile()">发送文件</button>
-            <button class="secondary-btn" onclick="sendText()">发送文本</button>
+            <button class="primary-btn" onclick="sendFile()">仅发送文件</button>
+            <button class="secondary-btn" onclick="sendText()">仅发送文本</button>
             <button class="primary-btn" onclick="sendFileAndText()">发送文件和文本</button>
         </div>
 
@@ -131,12 +148,10 @@
         </div>
     </div>
 
-    <!-- 加载动画遮罩 -->
     <div class="loading-overlay" id="loadingOverlay">
         <div class="loading-spinner" id="loadingSpinner"></div>
     </div>
 
-    <!-- 进度弹窗 -->
     <div class="modal-overlay" id="progressPopup">
         <div class="modal-content">
             <h3 class="modal-title" id="progressPopupTitle">发送进度</h3>
@@ -146,25 +161,22 @@
             <div id="popupProgressBars">
                 <!-- 进度条将由 JS 动态生成 -->
             </div>
-            <button class="secondary-btn modal-close-button" onclick="hideProgressPopup()" style="margin-top: calc(var(--grid-unit) * 2);">关闭</button>
+            <div class="modal-buttons-footer">
+                <button id="cancelSendBtn" class="warning-btn" onclick="handleCancelSend()">取消发送</button>
+                <button class="secondary-btn modal-close-button" onclick="hideProgressPopup()">关闭</button>
+            </div>
         </div>
     </div>
 
-    <!-- 新增图片预览弹窗 -->
     <div id="imagePreviewModal" class="modal-overlay" style="display:none;">
         <div class="modal-content image-modal-content">
             <span class="close-image-modal-btn" onclick="closeImagePreviewModal()">×</span>
             <img id="fullPreviewImage" src="" alt="Full Preview">
-            <button class="secondary-btn modal-close-button" onclick="closeImagePreviewModal()">关闭</button>
+            <button class="secondary-btn modal-close-button" onclick="closeImagePreviewModal()" style="margin-top: var(--grid-unit);">关闭</button>
         </div>
     </div>
 
-    <!-- 主题切换动画容器 -->
-    <div id="themeWipeContainer" class="theme-wipe-container">
-        <!-- 色块元素将由 JS 动态添加 -->
-    </div>
-
-    <!-- 引入自定义脚本 -->
+    <div id="themeWipeContainer" class="theme-wipe-container"></div>
     <script src="scripts.js"></script>
 </body>
 </html>
