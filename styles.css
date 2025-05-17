@@ -126,6 +126,11 @@ body {
     font-size: calc(var(--grid-unit) * 1.2); margin: calc(var(--grid-unit) / 2) 0 0 0;
     color: var(--text-muted); transition: color 0.3s;
 }
+.nav-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--grid-unit);
+}
 .theme-toggle {
     height: calc(var(--grid-unit) * 4); padding: 0 calc(var(--grid-unit) * 1.5);
     border-radius: 4px; background-color: var(--button-secondary-background);
@@ -715,6 +720,12 @@ button:hover:not(:disabled) {
 /* Responsive Design */
 @media (max-width: 768px) {
     .container { padding: 0 calc(var(--grid-unit)); }
+    .nav-actions { flex-wrap: wrap; justify-content: flex-end; } /* Allow wrapping for smaller screens */
+    .nav-actions button { flex-basis: calc(50% - (var(--grid-unit)/2)); } /* Two buttons per row if they wrap */
+    .nav-actions #saveSettingsBtn { min-width: 100px; } /* Ensure save button is reasonably sized */
+    .nav-actions #themeToggleBtn { min-width: 100px; } /* Ensure theme button is reasonably sized */
+
+
     .action-buttons { flex-direction: column; align-items: center; }
     .action-buttons button {
         width: 100%; margin-bottom: calc(var(--grid-unit));
@@ -808,4 +819,13 @@ body.theme-dark {
 @media (max-width: 400px) {
     .input-with-icon input { padding-right: calc(var(--grid-unit) * 8.5); }
     .paste-btn { right: calc(var(--grid-unit) * 4.5); }
+     .nav-actions {
+        flex-direction: column; /* Stack buttons in navbar on very small screens */
+        align-items: flex-end; /* Align them to the right */
+    }
+    .nav-actions button {
+        width: auto; /* Allow buttons to size to content */
+        flex-basis: auto;
+        margin-bottom: calc(var(--grid-unit)/2);
+    }
 }

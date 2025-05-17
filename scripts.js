@@ -22,7 +22,7 @@ let apiTokenInput, minDelayInput, maxDelayInput, minDelayRange, maxDelayRange,
     popupUploadSpeed, sendModeToggleBtn, themeToggleBtn, themeWipeContainer,
     newGroupNameInput, groupsListContainer, imagePreviewModal, fullPreviewImage,
     pageContainer, storagePreferenceSelect, localFileControls, loadSettingsFileBtn,
-    settingsFileInput, saveSettingsFileBtn, cancelSendBtn;
+    settingsFileInput, saveSettingsFileBtn, cancelSendBtn, saveSettingsBtn;
 
 function initializeDOMElements() {
     apiTokenInput = document.getElementById('apiToken');
@@ -50,6 +50,7 @@ function initializeDOMElements() {
     fullPreviewImage = document.getElementById('fullPreviewImage');
     pageContainer = document.querySelector('.container');
     cancelSendBtn = document.getElementById('cancelSendBtn');
+    saveSettingsBtn = document.getElementById('saveSettingsBtn');
 
 
     storagePreferenceSelect = document.getElementById('storagePreference');
@@ -114,7 +115,7 @@ function toggleTheme() {
                 }
                 isAnimatingTheme = false;
                 themeToggleBtn.disabled = false;
-                collectSettingsAndSave();
+                // Removed collectSettingsAndSave();
             }, delayBetweenWipes * (wipes.length - 1) + animationDuration);
         });
     });
@@ -128,7 +129,7 @@ function toggleTokenVisibility() {
     const isBlurred = apiTokenInput.classList.toggle('blurred-text');
     eyeClosed.style.display = isBlurred ? 'block' : 'none';
     eyeOpen.style.display = isBlurred ? 'none' : 'block';
-    collectSettingsAndSave();
+    // Removed collectSettingsAndSave();
 }
 
 function pasteToken() {
@@ -137,8 +138,8 @@ function pasteToken() {
             .then(text => {
                 if (text) {
                     apiTokenInput.value = text.trim();
-                    collectSettingsAndSave();
-                    updateStatus('状态：API Token 已从剪贴板粘贴。', 'info');
+                    // Removed collectSettingsAndSave();
+                    updateStatus('状态：API Token 已从剪贴板粘贴。请记得手动保存设置。', 'info');
                 } else {
                     updateStatus('状态：剪贴板为空。', 'error');
                 }
@@ -527,6 +528,7 @@ function updateDelay(event) {
             minDelayRange.value = maxDelayInput.value;
         }
     }
+    // Removed collectSettingsAndSave();
 }
 
 function getRandomDelay() {
@@ -547,9 +549,9 @@ function addNewGroup() {
         channels: {}
     };
     newGroupNameInput.value = '';
-    collectSettingsAndSave();
+    // Removed collectSettingsAndSave();
     renderGroupsAndChannels();
-    updateStatus(`状态：已添加频道组 "${groupName}"。`, 'info');
+    updateStatus(`状态：已添加频道组 "${groupName}"。请记得手动保存设置。`, 'info');
 }
 
 function renderGroupsAndChannels() {
@@ -620,15 +622,15 @@ function toggleGroupPanel(groupId, headerElement) {
     const groupItemDiv = document.getElementById(groupId);
     if (groupItemDiv) groupItemDiv.classList.toggle('collapsed-group', !group.panelOpen);
 
-    collectSettingsAndSave();
+    // Removed collectSettingsAndSave();
 }
 
 
 function renameGroup(groupId, newName) {
     if (channelGroupsData[groupId]) {
         channelGroupsData[groupId].name = newName.trim() || "未命名组";
-        collectSettingsAndSave();
-        updateStatus(`状态：频道组 ${groupId} 已重命名为 "${channelGroupsData[groupId].name}"。`, 'info');
+        // Removed collectSettingsAndSave();
+        updateStatus(`状态：频道组 ${groupId} 已重命名为 "${channelGroupsData[groupId].name}"。请记得手动保存设置。`, 'info');
     }
 }
 
@@ -641,8 +643,8 @@ function toggleGroupEnabledState(groupId, event) {
         button.textContent = group.enabled ? '已启用组' : '已禁用组';
         button.classList.toggle('enabled-btn', group.enabled);
         button.classList.toggle('disabled-btn', !group.enabled);
-        collectSettingsAndSave();
-        updateStatus(`状态：频道组 "${group.name}" 已${group.enabled ? '启用' : '禁用'}。`, 'info');
+        // Removed collectSettingsAndSave();
+        updateStatus(`状态：频道组 "${group.name}" 已${group.enabled ? '启用' : '禁用'}。请记得手动保存设置。`, 'info');
     }
 }
 
@@ -652,9 +654,9 @@ function deleteGroup(groupId, event) {
     if (group && confirm(`确定要删除频道组 "${group.name}" 及其所有频道吗？`)) {
         const groupName = group.name;
         delete channelGroupsData[groupId];
-        collectSettingsAndSave();
+        // Removed collectSettingsAndSave();
         renderGroupsAndChannels();
-        updateStatus(`状态：频道组 "${groupName}" 已删除。`, 'info');
+        updateStatus(`状态：频道组 "${groupName}" 已删除。请记得手动保存设置。`, 'info');
     }
 }
 
@@ -672,9 +674,9 @@ function addChannelToGroup(groupId, event) {
         if (!group.panelOpen) {
             group.panelOpen = true; 
         }
-        collectSettingsAndSave();
+        // Removed collectSettingsAndSave();
         renderGroupsAndChannels(); 
-        updateStatus(`状态：已在组 "${group.name}" 中添加新频道。`, 'info');
+        updateStatus(`状态：已在组 "${group.name}" 中添加新频道。请记得手动保存设置。`, 'info');
         const newChannelInput = document.querySelector(`#channel_${groupId}_${channelId} input[type="text"]`);
         if (newChannelInput) newChannelInput.focus();
     }
@@ -754,7 +756,7 @@ function setupChannelInputListeners(inputElement, groupId, channelId) {
         if (group && group.channels[channelId]) {
             const newUrl = inputElement.value.trim();
             group.channels[channelId].url = newUrl;
-            collectSettingsAndSave();
+            // Removed collectSettingsAndSave();
 
             const channelNameSpan = document.getElementById(`channel-name-${groupId}-${channelId}`);
             const retryBtn = document.getElementById(`retry-btn-${groupId}-${channelId}`);
@@ -763,7 +765,7 @@ function setupChannelInputListeners(inputElement, groupId, channelId) {
                 if(channelNameSpan) channelNameSpan.textContent = '服务器：未识别 | 频道：未识别';
                 group.channels[channelId].fetchedInfo = null;
                 if(retryBtn) retryBtn.style.display = 'none';
-                collectSettingsAndSave();
+                // Removed collectSettingsAndSave();
                 return;
             }
 
@@ -771,7 +773,7 @@ function setupChannelInputListeners(inputElement, groupId, channelId) {
                  if(channelNameSpan) channelNameSpan.textContent = '服务器：URL格式无效 | 频道：URL格式无效';
                  group.channels[channelId].fetchedInfo = null;
                  if(retryBtn) retryBtn.style.display = 'block'; // Show retry even for format error, as user might fix it
-                 collectSettingsAndSave();
+                 // Removed collectSettingsAndSave();
                  // Do not attempt to fetch if format is clearly wrong
                  if (inputElement._fetchTimeout) clearTimeout(inputElement._fetchTimeout);
                  return;
@@ -784,7 +786,7 @@ function setupChannelInputListeners(inputElement, groupId, channelId) {
                 if (channelNameSpan) channelNameSpan.textContent = '服务器：未识别 | 频道：未识别'; // Or URL related message if invalid
                 group.channels[channelId].fetchedInfo = null;
                 if(retryBtn) retryBtn.style.display = newUrl ? 'block' : 'none';
-                collectSettingsAndSave();
+                // Removed collectSettingsAndSave();
             }
         }
     });
@@ -795,9 +797,9 @@ function toggleChannelEnabledState(groupId, channelId) {
     const channel = group?.channels[channelId];
     if (channel) {
         channel.enabled = !channel.enabled;
-        collectSettingsAndSave();
+        // Removed collectSettingsAndSave();
         renderGroupsAndChannels(); 
-        updateStatus(`状态：组 "${group.name}" 内频道 ${channelId} 已${channel.enabled ? '启用' : '禁用'}。`, 'info');
+        updateStatus(`状态：组 "${group.name}" 内频道 ${channelId} 已${channel.enabled ? '启用' : '禁用'}。请记得手动保存设置。`, 'info');
         if(channel.enabled && channel.url && !channel.fetchedInfo) {
             fetchChannelInfo(groupId, channelId); // Fetch info if enabled and not already fetched
         }
@@ -809,9 +811,9 @@ function toggleChannelSpoilerState(groupId, channelId) {
     const channel = group?.channels[channelId];
     if (channel && channel.enabled) { 
         channel.spoiler = !channel.spoiler;
-        collectSettingsAndSave();
+        // Removed collectSettingsAndSave();
         renderGroupsAndChannels(); 
-        updateStatus(`状态：组 "${group.name}" 内频道 ${channelId} 剧透标签已${channel.spoiler ? '开启' : '关闭'}。`, 'info');
+        updateStatus(`状态：组 "${group.name}" 内频道 ${channelId} 剧透标签已${channel.spoiler ? '开启' : '关闭'}。请记得手动保存设置。`, 'info');
     }
 }
 
@@ -819,9 +821,9 @@ function removeChannelFromGroup(groupId, channelId) {
     const group = channelGroupsData[groupId];
     if (group && group.channels[channelId] && confirm(`确定要从组 "${group.name}" 中删除此频道吗？`)) {
         delete group.channels[channelId];
-        collectSettingsAndSave();
+        // Removed collectSettingsAndSave();
         renderGroupsAndChannels();
-        updateStatus(`状态：已从组 "${group.name}" 中删除频道 ${channelId}。`, 'info');
+        updateStatus(`状态：已从组 "${group.name}" 中删除频道 ${channelId}。请记得手动保存设置。`, 'info');
     }
 }
 
@@ -850,19 +852,22 @@ async function fetchChannelInfo(groupId, channelId) {
     if (!apiToken) {
         channelNameSpan.textContent = '服务器：需Token | 频道：需Token';
         if (retryBtn) { retryBtn.style.display = 'block'; retryBtn.disabled = false; retryBtn.classList.remove('loading');}
-        collectSettingsAndSave(); return;
+        // Removed collectSettingsAndSave();
+        return;
     }
     if (!channelUrl) {
         channelNameSpan.textContent = '服务器：未识别 | 频道：未识别';
         if (retryBtn) { retryBtn.style.display = 'none'; retryBtn.disabled = false; retryBtn.classList.remove('loading');}
-        collectSettingsAndSave(); return;
+        // Removed collectSettingsAndSave();
+        return;
     }
     
     const urlParts = channelUrl.match(/channels\/(\d+|@me)\/(\d+)/);
     if (!urlParts || urlParts.length < 3) {
         channelNameSpan.textContent = '服务器：格式错误 | 频道：格式错误';
         if (retryBtn) { retryBtn.style.display = 'block'; retryBtn.disabled = false; retryBtn.classList.remove('loading');}
-        collectSettingsAndSave(); return;
+        // Removed collectSettingsAndSave();
+        return;
     }
     const discordGuildId = urlParts[1]; 
     const discordChannelId = urlParts[2];
@@ -938,7 +943,7 @@ async function fetchChannelInfo(groupId, channelId) {
         if (currentAbortController && signal === currentAbortController.signal) {
              currentAbortController = null; // Clear global controller if it was ours
         }
-        collectSettingsAndSave();
+        // Removed collectSettingsAndSave(); // Fetched info is in memory, user saves manually
     }
 }
 
@@ -947,9 +952,9 @@ function enableAllChannelsInGroup(groupId) {
     const group = channelGroupsData[groupId];
     if (group) {
         Object.values(group.channels).forEach(channel => channel.enabled = true);
-        collectSettingsAndSave();
+        // Removed collectSettingsAndSave();
         renderGroupsAndChannels(); // Will trigger fetches for newly enabled channels if needed
-        updateStatus(`状态：频道组 "${group.name}" 内所有频道已启用。`, 'info');
+        updateStatus(`状态：频道组 "${group.name}" 内所有频道已启用。请记得手动保存设置。`, 'info');
     }
 }
 
@@ -957,9 +962,9 @@ function disableAllChannelsInGroup(groupId) {
     const group = channelGroupsData[groupId];
     if (group) {
         Object.values(group.channels).forEach(channel => channel.enabled = false);
-        collectSettingsAndSave();
+        // Removed collectSettingsAndSave();
         renderGroupsAndChannels();
-        updateStatus(`状态：频道组 "${group.name}" 内所有频道已禁用。`, 'info');
+        updateStatus(`状态：频道组 "${group.name}" 内所有频道已禁用。请记得手动保存设置。`, 'info');
     }
 }
 
@@ -967,18 +972,18 @@ function enableAllChannelsGlobally() {
     Object.values(channelGroupsData).forEach(group => {
         Object.values(group.channels).forEach(channel => channel.enabled = true);
     });
-    collectSettingsAndSave();
+    // Removed collectSettingsAndSave();
     renderGroupsAndChannels(); // Will trigger fetches
-    updateStatus('状态：所有组的所有频道已全部启用。', 'info');
+    updateStatus('状态：所有组的所有频道已全部启用。请记得手动保存设置。', 'info');
 }
 
 function disableAllChannelsGlobally() {
     Object.values(channelGroupsData).forEach(group => {
         Object.values(group.channels).forEach(channel => channel.enabled = false);
     });
-    collectSettingsAndSave();
+    // Removed collectSettingsAndSave();
     renderGroupsAndChannels();
-    updateStatus('状态：所有组的所有频道已全部禁用。', 'info');
+    updateStatus('状态：所有组的所有频道已全部禁用。请记得手动保存设置。', 'info');
 }
 
 
@@ -988,8 +993,8 @@ function toggleSendMode() {
     sendModeToggleBtn.textContent = sendMode === 'sequential' ? '切换为并行发送' : '切换为逐条发送';
     sendModeToggleBtn.classList.toggle('primary-btn', sendMode === 'parallel');
     sendModeToggleBtn.classList.toggle('secondary-btn', sendMode === 'sequential');
-    collectSettingsAndSave();
-    updateStatus(`状态：发送模式已切换为 ${sendMode === 'sequential' ? '逐条发送' : '并行发送'}。`, 'info');
+    // Removed collectSettingsAndSave();
+    updateStatus(`状态：发送模式已切换为 ${sendMode === 'sequential' ? '逐条发送' : '并行发送'}。请记得手动保存设置。`, 'info');
 }
 
 
@@ -1146,18 +1151,12 @@ const dataManager = {
             localStorage.setItem('appSettings', JSON.stringify(data));
             updateStatus('设置已保存到浏览器。', 'info');
         } else if (currentStorageMethod === 'localFile') {
-            // BROWSER SECURITY NOTE:
-            // Browsers cannot directly write files to arbitrary locations (like a 'Settings' folder
-            // in the script's root) or create directories for security reasons.
-            // This function will trigger a download of 'discord_forwarder_settings.json'.
-            // The user must manually choose the save location. To organize, the user can create
-            // a 'Settings' folder themselves and save the file there, overwriting previous versions.
             const jsonData = JSON.stringify(data, null, 2);
             const blob = new Blob([jsonData], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'discord_forwarder_settings.json'; // Fixed filename
+            a.download = 'discord_forwarder_settings.json'; 
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -1208,26 +1207,24 @@ function getDefaultSettings() {
     };
 }
 
+function manualSaveSettings() {
+    collectSettingsAndSave();
+}
+
 function collectSettingsAndSave() {
-    // Debounce save operations slightly if called very frequently
-    if (collectSettingsAndSave._saveTimeout) {
-        clearTimeout(collectSettingsAndSave._saveTimeout);
-    }
-    collectSettingsAndSave._saveTimeout = setTimeout(() => {
-        const settings = {
-            apiToken: apiTokenInput.value.trim(),
-            blurToken: apiTokenInput.classList.contains('blurred-text').toString(),
-            minDelay: minDelayInput.value,
-            maxDelay: maxDelayInput.value,
-            message: messageInput.value,
-            channelGroupsData: channelGroupsData,
-            sendMode: sendMode,
-            theme: document.body.classList.contains('theme-dark') ? 'dark' : 'light'
-        };
-        dataManager.saveData(settings).catch(err => {
-            updateStatus(`保存设置时出错: ${err.message}`, 'error');
-        });
-    }, 250);
+    const settings = {
+        apiToken: apiTokenInput.value.trim(),
+        blurToken: apiTokenInput.classList.contains('blurred-text').toString(),
+        minDelay: minDelayInput.value,
+        maxDelay: maxDelayInput.value,
+        message: messageInput.value,
+        channelGroupsData: channelGroupsData,
+        sendMode: sendMode,
+        theme: document.body.classList.contains('theme-dark') ? 'dark' : 'light'
+    };
+    dataManager.saveData(settings).catch(err => {
+        updateStatus(`保存设置时出错: ${err.message}`, 'error');
+    });
 }
 
 async function loadSavedData() {
@@ -1728,16 +1725,19 @@ window.onload = async () => {
     updateFilePreview(); // Ensure empty text shows if no files initially
 
     // Event Listeners
+    if (saveSettingsBtn) saveSettingsBtn.addEventListener('click', manualSaveSettings);
     document.querySelector('#progressPopup .modal-close-button').addEventListener('click', hideProgressPopup);
     if (cancelSendBtn) cancelSendBtn.addEventListener('click', handleCancelSend);
     
-    apiTokenInput.addEventListener('input', collectSettingsAndSave);
-    messageInput.addEventListener('input', () => { renderMarkdownPreview(); collectSettingsAndSave(); });
+    // Removed collectSettingsAndSave from these listeners
+    apiTokenInput.addEventListener('input', () => {}); // No auto-save
+    messageInput.addEventListener('input', () => { renderMarkdownPreview(); }); // No auto-save
 
-    minDelayRange.addEventListener('input', (event) => { updateDelay(event); collectSettingsAndSave(); });
-    maxDelayRange.addEventListener('input', (event) => { updateDelay(event); collectSettingsAndSave(); });
-    minDelayInput.addEventListener('input', (event) => { updateDelay(event); collectSettingsAndSave(); });
-    maxDelayInput.addEventListener('input', (event) => { updateDelay(event); collectSettingsAndSave(); });
+    minDelayRange.addEventListener('input', (event) => { updateDelay(event); });
+    maxDelayRange.addEventListener('input', (event) => { updateDelay(event); });
+    minDelayInput.addEventListener('input', (event) => { updateDelay(event); });
+    maxDelayInput.addEventListener('input', (event) => { updateDelay(event); });
+
 
     fileInput.addEventListener('change', handleFiles);
     uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); uploadArea.classList.add('dragover'); });
@@ -1751,11 +1751,11 @@ window.onload = async () => {
         localStorage.setItem('storagePreference', newMethod); 
         updateStorageMethodUI(newMethod);
         if (newMethod === 'localFile') {
-            updateStatus('存储方式已切换到本地文件。您可以加载现有设置或保存当前设置到文件。', 'info');
+            updateStatus('存储方式已切换到本地文件。您可以加载现有设置或保存当前设置到文件。请记得手动保存。', 'info');
         } else {
-            updateStatus('存储方式已切换到浏览器。设置将在此处保存/加载。', 'info');
+            updateStatus('存储方式已切换到浏览器。设置将在此处保存/加载。请记得手动保存。', 'info');
         }
-        collectSettingsAndSave(); 
+        // Removed collectSettingsAndSave(); 
     });
 
     loadSettingsFileBtn.addEventListener('click', () => {
@@ -1763,10 +1763,10 @@ window.onload = async () => {
     });
 
     saveSettingsFileBtn.addEventListener('click', () => {
-        const oldMethod = currentStorageMethod;
-        currentStorageMethod = 'localFile'; 
-        collectSettingsAndSave(); // This will now use the fixed filename for download
-        currentStorageMethod = oldMethod; 
+        const originalStorageMethod = currentStorageMethod;
+        currentStorageMethod = 'localFile'; // Temporarily set to ensure file download
+        manualSaveSettings(); // This will collect current settings and save them using dataManager
+        currentStorageMethod = originalStorageMethod; // Restore original method
     });
 
     settingsFileInput.addEventListener('change', (event) => {
@@ -1776,8 +1776,8 @@ window.onload = async () => {
             reader.onload = (e) => {
                 try {
                     const loadedSettings = JSON.parse(e.target.result);
-                    applySettings(loadedSettings);
-                    updateStatus(`设置已从 ${file.name} 加载。`, 'success');
+                    applySettings(loadedSettings); // Applies to UI and in-memory state
+                    updateStatus(`设置已从 ${file.name} 加载。如需持久化，请手动保存。`, 'success');
                 } catch (err) {
                     updateStatus(`读取设置文件时出错: ${err.message}`, 'error');
                 }
@@ -1791,6 +1791,11 @@ window.onload = async () => {
     });
     
     window.addEventListener('keydown', (event) => {
+        if (event.ctrlKey && (event.key === 's' || event.key === 'S')) {
+            event.preventDefault();
+            manualSaveSettings();
+            updateStatus('设置已通过 Ctrl+S 保存。', 'info');
+        }
         if (event.key === 'Escape' && imagePreviewModal.style.display === 'flex') {
             closeImagePreviewModal();
         }
