@@ -336,28 +336,28 @@ input[type="number"].slider-input { width: 60px; margin-left: calc(var(--grid-un
 }
 
 .channel-item {
-    display: flex; align-items: flex-start; /* Align to top */
+    display: flex; align-items: flex-start; 
     padding: calc(var(--grid-unit));
     border-bottom: 1px solid var(--border-color); 
     transition: background-color 0.3s;
     pointer-events: auto; 
-    flex-wrap: nowrap; /* Prevent wrapping by default, manage with flex-basis */
+    flex-wrap: nowrap; 
     gap: calc(var(--grid-unit));
 }
 .channel-item:last-child { border-bottom: none; }
 .channel-item:hover { background-color: var(--hover-bg); }
 
-.channel-item input[type="checkbox"] {
+.channel-item > input[type="checkbox"] { /* Direct child selector for the checkbox */
     flex-shrink: 0;
-    margin-top: calc(var(--grid-unit) / 3); /* Align with text */
+    margin-top: calc(var(--grid-unit) / 3); /* Align with text better */
     width: calc(var(--grid-unit) * 1.5);
     height: calc(var(--grid-unit) * 1.5);
     cursor: pointer;
     pointer-events: auto;
 }
 .channel-info {
-    flex-grow: 1;
-    min-width: 0; /* Allow shrinking */
+    /* flex-grow: 1; */ /* Removed to prevent large empty space */
+    min-width: 0; /* Allow shrinking if content is long */
     display: flex;
     flex-direction: column;
     gap: calc(var(--grid-unit) / 4);
@@ -366,8 +366,8 @@ input[type="number"].slider-input { width: 60px; margin-left: calc(var(--grid-un
     font-weight: 500;
     color: var(--text-normal);
     font-size: calc(var(--grid-unit) * 1.2);
-    word-break: break-all; /* Break long names */
-    cursor: pointer; /* For label association */
+    word-break: break-all; 
+    cursor: pointer; 
 }
 .channel-url {
     font-size: calc(var(--grid-unit) * 1);
@@ -382,15 +382,15 @@ input[type="number"].slider-input { width: 60px; margin-left: calc(var(--grid-un
 
 .channel-actions {
     display: flex;
-    flex-direction: column; /* Stack actions vertically */
-    align-items: flex-end; /* Align to the right */
+    flex-direction: column; 
+    align-items: flex-start; /* Align buttons to their container's start for consistency */
     gap: calc(var(--grid-unit) / 2);
     flex-shrink: 0;
-    margin-left: auto; /* Push to the right */
+    /* margin-left: auto; */ /* Removed to bring actions closer to info */
 }
 .channel-actions button, .channel-actions .spoiler-checkbox {
-    width: 100%; /* Make buttons full width in their column */
-    min-width: 100px; /* Ensure they have some width */
+    width: auto; /* Allow buttons to size based on content */
+    min-width: 100px; 
     font-size: calc(var(--grid-unit) * 1);
     padding: calc(var(--grid-unit) * 0.5) var(--grid-unit);
 }
@@ -402,7 +402,7 @@ input[type="number"].slider-input { width: 60px; margin-left: calc(var(--grid-un
     color: var(--text-normal);
     cursor: pointer;
     white-space: nowrap;
-    justify-content: flex-end; /* Align checkbox and text to the right */
+    /* justify-content: flex-end; */ /* No longer needed if align-items: flex-start on parent */
 }
 .spoiler-checkbox input[type="checkbox"] {
     width: auto;
@@ -415,7 +415,7 @@ input[type="number"].slider-input { width: 60px; margin-left: calc(var(--grid-un
     margin-top: calc(var(--grid-unit) * 2);
     padding-top: calc(var(--grid-unit) * 1.5);
     border-top: 1px solid var(--border-color);
-    flex-direction: row; /* Global actions horizontal */
+    flex-direction: row; 
     flex-wrap: wrap;
     gap: var(--grid-unit);
 }
@@ -905,20 +905,25 @@ button:hover:not(:disabled) {
         padding: calc(var(--grid-unit) * 1.2); 
         gap: calc(var(--grid-unit) * 1.2); 
     }
-    .channel-item input[type="checkbox"] { margin-top: calc(var(--grid-unit) * 0.6); }
-    .channel-info { flex-basis: 100%; order: 1; } /* Info first, then actions */
+    .channel-item > input[type="checkbox"] { margin-top: calc(var(--grid-unit) * 0.6); }
+    .channel-info { 
+        flex-basis: 100%; 
+        order: 1;  /* Info first */
+        flex-grow: 0; /* Ensure it doesn't grow when stacked */
+    } 
     .channel-actions { 
         flex-direction: row; /* Actions horizontal */
         flex-wrap: wrap;
         align-items: center;
         justify-content: flex-start;
         width: 100%;
-        order: 2;
-        margin-left: 0; /* Reset margin */
+        order: 2; /* Actions second */
+        margin-left: 0; /* Reset margin from desktop */
     }
     .channel-actions button, .channel-actions .spoiler-checkbox {
-        flex-grow: 1; /* Allow buttons to take space */
+        flex-grow: 1; 
         min-width: calc(var(--grid-unit) * 10);
+        width: auto; /* Override desktop setting if any */
     }
 
 
@@ -946,11 +951,19 @@ button:hover:not(:disabled) {
 
 @media (min-width: 769px) and (max-width: 1024px) {
     .container { padding: 0 calc(var(--grid-unit) * 1.5); max-width: 100%; }
-    /* :root { --grid-unit: 11px; } /* Avoid changing root var here, use on smaller specific screen if needed */
     .channel-actions.global-channel-actions { flex-wrap: wrap; }
     .channel-item { gap: calc(var(--grid-unit)); }
-    .channel-actions { flex-direction: row; flex-wrap: wrap; align-items: center; } /* Keep actions horizontal on tablet */
-    .channel-actions button, .channel-actions .spoiler-checkbox { width: auto; flex-grow: 0; }
+    /* For tablet, keep actions horizontal but still clustered left with info due to earlier CSS changes */
+    .channel-actions { 
+        flex-direction: row; 
+        flex-wrap: wrap; 
+        align-items: center; 
+        margin-left: 0; /* Ensure it's reset if it was auto */
+    } 
+    .channel-actions button, .channel-actions .spoiler-checkbox { 
+        width: auto; 
+        flex-grow: 0; 
+    }
     .thumbnails-grid { grid-template-columns: repeat(auto-fill, minmax(calc(var(--grid-unit) * 18), 1fr)); }
 }
 
